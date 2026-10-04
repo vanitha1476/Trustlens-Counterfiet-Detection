@@ -165,7 +165,13 @@ def extract_multimodal_features(
     feat[16] = np.clip(pz, -3.0, 3.0) / 3.0
     
     # Seller rating (0 to 1)
-    sr = (seller_rating / 100.0) if (seller_rating is not None and seller_rating > 0) else 0.85
+    if seller_rating is not None and seller_rating > 0:
+        if seller_rating <= 5.0:
+            sr = seller_rating / 5.0  # 4.4 / 5 = 0.88
+        else:
+            sr = min(1.0, seller_rating / 100.0)
+    else:
+        sr = 0.88
     feat[17] = sr
     
     # Seller reviews count (log scale)
@@ -175,7 +181,7 @@ def extract_multimodal_features(
     # Combined risk composite
     risk_comp = 0.0
     if pz < -1.8: risk_comp += 0.5
-    if sr < 0.75: risk_comp += 0.3
+    if sr < 0.72: risk_comp += 0.3
     if has_replica_flags: risk_comp += 0.4
     feat[19] = min(1.0, risk_comp)
     

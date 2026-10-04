@@ -127,11 +127,24 @@ def predict_product(payload: ScrapedProductPayload):
     looks_similar = image_res["looks_similar"]
     visual_sim = image_res["visual_similarity"]
     
-    # 3. Price & Risk Metrics
+    # 3. Price & Risk Metrics with Currency Normalization
+    EXCHANGE_RATES_TO_USD = {
+        "USD": 1.0,
+        "INR": 0.0118,  # ₹85 ≈ $1 USD
+        "GBP": 1.28,
+        "EUR": 1.08,
+        "CAD": 0.74,
+        "AUD": 0.65,
+        "JPY": 0.0067
+    }
+    
     price_z = None
     if matched_brand_id and matched_brand_id in brands_data and payload.price is not None:
         b_info = brands_data[matched_brand_id]
-        price_z = (payload.price - b_info["price_stats"]["mean"]) / b_info["price_stats"]["std"]
+        curr = (payload.currency or "USD").upper()
+        rate = EXCHANGE_RATES_TO_USD.get(curr, 1.0)
+        price_in_usd = payload.price * rate
+        price_z = (price_in_usd - b_info["price_stats"]["mean"]) / b_info["price_stats"]["std"]
 
     has_homage = bool(text_res["detected_homage_flags"])
     has_replica = bool(text_res["detected_replica_flags"])
@@ -172,10 +185,13 @@ def predict_product(payload: ScrapedProductPayload):
     if has_additional_evidence:
         is_uncertain = False
         if final_classification == "Uncertain":
-            final_classification = "Likely Authentic" if claims_brand and price_z and price_z > -1.5 else "Potential Counterfeit"
+            final_classification = "Likely Authentic" if claims_brand and (price_z is None or price_z > -1.8) else "Potential Counterfeit"
     else:
-        is_uncertain = (final_classification == "Uncertain" or total_entropy >= TAU_ENTROPY)
-        if is_uncertain:
+        # Only declare uncertain if rule found ambiguity or missing critical signals
+        is_uncertain = (final_classification == "Uncertain")
+        # If model has contradictory high entropy on an unverified product without images
+        if not is_uncertain and total_entropy >= 1.85 and (not payload.image_urls or len(payload.image_urls) == 0):
+            is_uncertain = True
             final_classification = "Uncertain"
 
     pred_idx = CLASS_NAMES.index(final_classification)

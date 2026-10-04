@@ -62,38 +62,41 @@ class TextClaimBaseline:
             score = 0.0
             # 1. Explicit brand field match
             if brand_claimed and (brand_claimed.lower() == b_info["name"] or brand_claimed.lower() in b_info["aliases"]):
-                score += 0.55
+                score += 0.70
                 
             # 2. Alias keyword matches in title/desc
-            matched_aliases = [alias for alias in b_info["aliases"] if re.search(r"\b" + re.escape(alias) + r"\b", combined_text)]
-            if matched_aliases:
-                # Stronger signal if alias is in title
-                title_lower = title.lower()
-                title_matches = [alias for alias in b_info["aliases"] if re.search(r"\b" + re.escape(alias) + r"\b", title_lower)]
-                if title_matches:
-                    score += 0.40
-                else:
-                    score += 0.20
+            title_lower = title.lower().strip()
+            # Check if title starts with brand name (e.g. "Nike Mens Air Max...")
+            for alias in b_info["aliases"]:
+                if title_lower.startswith(alias + " ") or title_lower == alias:
+                    score += 0.85
+                    break
+                elif re.search(r"\b" + re.escape(alias) + r"\b", title_lower):
+                    score += 0.75
+                    break
+                elif re.search(r"\b" + re.escape(alias) + r"\b", combined_text):
+                    score += 0.35
+                    break
                     
             # 3. Model keyword matches
             for model in b_info["canonical_models"]:
                 m_keywords = [kw.lower() for kw in model.get("keywords", [])]
                 for kw in m_keywords:
                     if re.search(r"\b" + re.escape(kw) + r"\b", combined_text):
-                        score += 0.15
+                        score += 0.20
                         best_model_id = model["model_id"]
                         break
                         
-            # Homage / Dupe penalty
+            # Homage / Dupe penalty only if actual homage keywords are detected
             if detected_homage_flags:
-                score *= 0.10  # Heavily dampen claim score if explicit homage keywords present
+                score *= 0.15  # Heavily dampen claim score if explicit homage keywords present
                 
             if score > max_claim_score:
                 max_claim_score = min(score, 1.0)
                 best_brand_id = b_id
                 
-        # If no brand exceeded minimal threshold, unclaim
-        claims_brand = max_claim_score >= 0.45
+        # Lower minimal threshold: if title clearly has brand name, it claims brand
+        claims_brand = (max_claim_score >= 0.40)
         
         return {
             "claims_brand": claims_brand,

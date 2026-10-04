@@ -50,21 +50,26 @@ def evaluate_claim_vs_appearance(
             ))
 
     seller_risk = False
+    norm_rating = seller_rating
     if seller_rating is not None and seller_rating > 0:
-        if seller_rating < 75.0:
+        # Scale 5-star ratings (e.g. Amazon 4.4 out of 5) to 0-100 percentage
+        if seller_rating <= 5.0:
+            norm_rating = seller_rating * 20.0
+            
+        if norm_rating < 72.0:
             seller_risk = True
             risk_signals.append(RiskSignal(
                 signal_name="Low Seller Feedback",
                 severity="high",
-                description=f"Seller satisfaction score is abnormally low ({seller_rating}%).",
-                value=seller_rating
+                description=f"Seller rating is abnormally low ({seller_rating} / 5 stars or {norm_rating:.0f}%).",
+                value=round(norm_rating, 1)
             ))
-        elif seller_rating < 85.0:
+        elif norm_rating < 80.0:
             risk_signals.append(RiskSignal(
                 signal_name="Marginal Seller Rating",
                 severity="medium",
-                description=f"Seller rating ({seller_rating}%) warrants caution.",
-                value=seller_rating
+                description=f"Seller rating ({seller_rating} stars or {norm_rating:.0f}%) warrants moderate caution.",
+                value=round(norm_rating, 1)
             ))
 
     if replica_keywords:
