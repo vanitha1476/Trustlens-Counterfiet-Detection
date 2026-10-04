@@ -109,7 +109,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
-  // Trigger DOM extraction from active tab
+  // Trigger DOM extraction from active tab with programmatic injection fallback
   function triggerPageScan() {
     showLoading();
 
@@ -120,28 +120,52 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const activeTab = tabs[0];
-      // If browsing an unsupported chrome:// or extension:// page, load default demo
+      // If browsing an internal chrome:// page, load default demo
       if (!activeTab.url || activeTab.url.startsWith("chrome://") || activeTab.url.startsWith("edge://")) {
         analyzeListing(DEMO_PRESETS.auth);
         return;
       }
 
-      chrome.tabs.sendMessage(activeTab.id, { action: "EXTRACT_PAGE_DATA" }, (response) => {
-        if (chrome.runtime.lastError || !response || !response.success) {
-          // Fallback to active tab metadata
-          analyzeListing({
-            url: activeTab.url,
-            title: activeTab.title || "Product Listing",
-            price: 150.0,
-            currency: "USD",
-            brand_claimed: null,
-            image_urls: []
-          });
-          return;
-        }
+      function attemptExtraction(retryOnFail = true) {
+        chrome.tabs.sendMessage(activeTab.id, { action: "EXTRACT_PAGE_DATA" }, (response) => {
+          if (chrome.runtime.lastError || !response || !response.success) {
+            if (retryOnFail) {
+              // Programmatically inject content.js if the tab was loaded before the extension
+              chrome.scripting.executeScript(
+                {
+                  target: { tabId: activeTab.id },
+                  files: ["content.js"]
+                },
+                () => {
+                  if (chrome.runtime.lastError) {
+                    fallbackToMetadata();
+                  } else {
+                    setTimeout(() => attemptExtraction(false), 150);
+                  }
+                }
+              );
+            } else {
+              fallbackToMetadata();
+            }
+            return;
+          }
 
-        analyzeListing(response.data);
-      });
+          analyzeListing(response.data);
+        });
+      }
+
+      function fallbackToMetadata() {
+        analyzeListing({
+          url: activeTab.url,
+          title: activeTab.title || "Product Listing",
+          price: null,
+          currency: "USD",
+          brand_claimed: null,
+          image_urls: []
+        });
+      }
+
+      attemptExtraction(true);
     });
   }
 
@@ -172,6 +196,20 @@ document.addEventListener("DOMContentLoaded", () => {
     loadingState.classList.add("hidden");
     errorState.classList.add("hidden");
     resultCard.classList.remove("hidden");
+
+    // Scanned info header
+    const scannedTitle = document.getElementById("scannedTitle");
+    const scannedSourceBadge = document.getElementById("scannedSourceBadge");
+    if (scannedTitle && activeListingPayload) {
+      scannedTitle.textContent = activeListingPayload.title || "Product Listing";
+      if (activeListingPayload.is_search_page) {
+        scannedSourceBadge.textContent = "Search Grid (Top Item)";
+        scannedSourceBadge.style.color = "#f59e0b";
+      } else {
+        scannedSourceBadge.textContent = "Product Detail Page";
+        scannedSourceBadge.style.color = "#38bdf8";
+      }
+    }
 
     verdictTitle.textContent = data.classification;
     confidenceBadge.textContent = `${Math.round(data.confidence * 100)}% Confidence`;

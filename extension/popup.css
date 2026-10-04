@@ -212,6 +212,42 @@ body {
   max-width: 260px;
 }
 
+/* Scanned Item Info */
+.scanned-info-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+}
+
+.scanned-icon {
+  font-size: 14px;
+}
+
+.scanned-text-group {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.scanned-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scanned-source-badge {
+  font-size: 9px;
+  color: var(--accent-blue);
+  font-weight: 500;
+}
+
 /* Verdict Banner */
 .verdict-banner {
   border-radius: var(--radius-md);

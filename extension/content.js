@@ -3,12 +3,21 @@
  * Scrapes product metadata using a 4-tier cascade:
  * Tier 1: Schema.org JSON-LD
  * Tier 2: OpenGraph & Twitter Meta Tags
- * Tier 3: Platform Adapters (Amazon, Flipkart)
+ * Tier 3: Platform Adapters (Amazon, Flipkart) - supports both Product & Search Results
  * Tier 4: Heuristic DOM scanning
  */
 
 (function () {
   "use strict";
+
+  function detectCurrency() {
+    const host = window.location.hostname.toLowerCase();
+    if (host.includes(".in") || host.includes("flipkart") || host.includes("myntra")) return "INR";
+    if (host.includes(".co.uk")) return "GBP";
+    if (host.includes(".de") || host.includes(".fr") || host.includes(".it") || host.includes(".es")) return "EUR";
+    if (host.includes(".ca")) return "CAD";
+    return "USD";
+  }
 
   // Tier 1: Schema.org JSON-LD
   function extractJsonLd() {
@@ -21,10 +30,11 @@
           if (item["@type"] === "Product" || item["@type"]?.includes?.("Product")) {
             const offers = Array.isArray(item.offers) ? item.offers[0] : item.offers;
             let price = null;
-            let currency = "USD";
+            let currency = detectCurrency();
             if (offers) {
-              price = parseFloat(offers.price || offers.lowPrice || offers.highPrice) || null;
-              currency = offers.priceCurrency || "USD";
+              const pVal = offers.price || offers.lowPrice || offers.highPrice;
+              if (pVal) price = parseFloat(String(pVal).replace(/[^0-9.]/g, "")) || null;
+              if (offers.priceCurrency) currency = offers.priceCurrency;
             }
 
             let images = [];
@@ -50,7 +60,7 @@
           }
         }
       } catch (e) {
-        // Continue to next script
+        // Continue
       }
     }
     return null;
@@ -68,7 +78,7 @@
 
     const title = getMeta(["og:title", "twitter:title"]);
     const rawPrice = getMeta(["product:price:amount", "og:price:amount"]);
-    const currency = getMeta(["product:price:currency", "og:price:currency"]) || "USD";
+    const currency = getMeta(["product:price:currency", "og:price:currency"]) || detectCurrency();
     const brand = getMeta(["product:brand", "og:brand"]);
     const image = getMeta(["og:image", "twitter:image"]);
     const desc = getMeta(["og:description", "description"]);
@@ -96,104 +106,216 @@
     const isAmazon = window.location.hostname.includes("amazon.");
     if (!isAmazon) return null;
 
-    const titleEl = document.querySelector("#productTitle, #title");
-    const title = titleEl ? titleEl.innerText.trim() : null;
+    const currency = detectCurrency();
 
-    let price = null;
-    const priceEl = document.querySelector(".a-price .a-offscreen, #priceblock_ourprice, #priceblock_dealprice, #corePrice_desktop .a-price .a-offscreen");
-    if (priceEl) {
-      const match = priceEl.innerText.match(/[0-9,.]+/);
-      if (match) price = parseFloat(match[0].replace(/,/g, ""));
+    // Check if on a product detail page first
+    const titleEl = document.querySelector("#productTitle, #title, h1#title");
+    if (titleEl && titleEl.innerText.trim()) {
+      const title = titleEl.innerText.trim();
+
+      let price = null;
+      const priceEl = document.querySelector(".a-price .a-offscreen, #priceblock_ourprice, #priceblock_dealprice, #corePriceDisplay_desktop_feature_div .a-price .a-offscreen, #corePrice_desktop .a-price .a-offscreen, .apexPriceToPay .a-offscreen");
+      if (priceEl) {
+        const match = priceEl.innerText.match(/[0-9,.]+/);
+        if (match) price = parseFloat(match[0].replace(/,/g, ""));
+      }
+
+      let brand = null;
+      const brandEl = document.querySelector("#bylineInfo, #brand, .po-brand .a-span9, tr.po-brand td.a-span9");
+      if (brandEl) {
+        brand = brandEl.innerText.replace(/Brand:|Visit the | Store/gi, "").trim();
+      }
+
+      let seller = null;
+      const sellerEl = document.querySelector("#merchant-info, #sellerProfileTriggerId");
+      if (sellerEl) {
+        seller = sellerEl.innerText.trim();
+      }
+
+      let rating = null;
+      const ratingEl = document.querySelector("#acrPopover .a-icon-alt, #averageCustomerReviews .a-icon-alt");
+      if (ratingEl) {
+        const rMatch = ratingEl.innerText.match(/([0-9.]+)\s+out of/i);
+        if (rMatch) rating = parseFloat(rMatch[1]);
+      }
+
+      let images = [];
+      const mainImg = document.querySelector("#landingImage, #imgBlkFront, #main-image-container img");
+      if (mainImg && mainImg.src && !mainImg.src.startsWith("data:")) {
+        images.push(mainImg.src);
+      }
+
+      return {
+        title,
+        price,
+        currency,
+        brand_claimed: brand,
+        seller_name: seller,
+        seller_rating: rating,
+        description: document.querySelector("#feature-bullets")?.innerText?.trim() || "",
+        image_urls: images,
+        is_search_page: false
+      };
     }
 
-    let brand = null;
-    const brandEl = document.querySelector("#bylineInfo, #brand, .po-brand .a-span9");
-    if (brandEl) {
-      brand = brandEl.innerText.replace(/Brand:|Visit the | Store/gi, "").trim();
+    // Otherwise, check if user is on Amazon Search Results Page
+    const searchItems = document.querySelectorAll('div[data-component-type="s-search-result"], div.s-result-item[data-asin]:not([data-asin=""])');
+    if (searchItems.length > 0) {
+      // Grab first prominent item from search results
+      for (const item of searchItems) {
+        const itemTitleEl = item.querySelector("h2 a span, h2 span, a.a-link-normal span.a-text-normal");
+        const itemPriceEl = item.querySelector(".a-price .a-offscreen, .a-color-price");
+        const itemImgEl = item.querySelector("img.s-image");
+        const itemRatingEl = item.querySelector("i.a-icon-star-small span.a-icon-alt, span[aria-label*='stars']");
+
+        if (itemTitleEl && itemTitleEl.innerText.trim()) {
+          const itemTitle = itemTitleEl.innerText.trim();
+          let itemPrice = null;
+          if (itemPriceEl) {
+            const pMatch = itemPriceEl.innerText.match(/[0-9,.]+/);
+            if (pMatch) itemPrice = parseFloat(pMatch[0].replace(/,/g, ""));
+          }
+
+          let images = [];
+          if (itemImgEl && itemImgEl.src) images.push(itemImgEl.src);
+
+          let rating = null;
+          if (itemRatingEl) {
+            const rMatch = itemRatingEl.innerText.match(/([0-9.]+)\s+out of/i);
+            if (rMatch) rating = parseFloat(rMatch[1]);
+          }
+
+          // Try extracting brand from title prefix or brand tag
+          let brand = null;
+          const brandHeader = item.querySelector(".s-line-clamp-1, h5 span");
+          if (brandHeader) brand = brandHeader.innerText.trim();
+
+          return {
+            title: itemTitle,
+            price: itemPrice,
+            currency,
+            brand_claimed: brand,
+            seller_name: "Amazon Marketplace",
+            seller_rating: rating,
+            description: "Product extracted from Amazon search results.",
+            image_urls: images,
+            is_search_page: true
+          };
+        }
+      }
     }
 
-    let seller = null;
-    const sellerEl = document.querySelector("#merchant-info, #sellerProfileTriggerId");
-    if (sellerEl) {
-      seller = sellerEl.innerText.trim();
-    }
-
-    let rating = null;
-    const ratingEl = document.querySelector("#acrPopover .a-icon-alt, #averageCustomerReviews .a-icon-alt");
-    if (ratingEl) {
-      const rMatch = ratingEl.innerText.match(/([0-9.]+)\s+out of/i);
-      if (rMatch) rating = parseFloat(rMatch[1]);
-    }
-
-    let images = [];
-    const mainImg = document.querySelector("#landingImage, #imgBlkFront, #main-image-container img");
-    if (mainImg && mainImg.src && !mainImg.src.startsWith("data:")) {
-      images.push(mainImg.src);
-    }
-
-    return {
-      title,
-      price,
-      currency: "USD",
-      brand_claimed: brand,
-      seller_name: seller,
-      seller_rating: rating,
-      description: document.querySelector("#feature-bullets")?.innerText?.trim() || "",
-      image_urls: images
-    };
+    return null;
   }
 
   function extractFlipkart() {
     const isFlipkart = window.location.hostname.includes("flipkart.");
     if (!isFlipkart) return null;
 
-    const titleEl = document.querySelector(".B_NuCI, span.VU-ZEz, h1._6EBuvT");
-    const title = titleEl ? titleEl.innerText.trim() : null;
+    const currency = "INR";
 
-    let price = null;
-    const priceEl = document.querySelector("._30jeq3._16Jk6d, div.Nx9bqj.CxhGGd");
-    if (priceEl) {
-      const match = priceEl.innerText.match(/[0-9,.]+/);
-      if (match) price = parseFloat(match[0].replace(/,/g, ""));
+    // Detail page
+    const titleEl = document.querySelector(".B_NuCI, span.VU-ZEz, h1._6EBuvT, h1.VU-ZEz");
+    if (titleEl && titleEl.innerText.trim()) {
+      const title = titleEl.innerText.trim();
+
+      let price = null;
+      const priceEl = document.querySelector("._30jeq3._16Jk6d, div.Nx9bqj.CxhGGd, div._30jeq3");
+      if (priceEl) {
+        const match = priceEl.innerText.match(/[0-9,.]+/);
+        if (match) price = parseFloat(match[0].replace(/,/g, ""));
+      }
+
+      const brandEl = document.querySelector("span.mEh187, span.G6XhRU, span.by-line");
+      const brand = brandEl ? brandEl.innerText.trim() : null;
+
+      const sellerEl = document.querySelector("#sellerName, div._1RLviY");
+      const seller = sellerEl ? sellerEl.innerText.replace(/Seller:\s*/i, "").trim() : null;
+
+      let rating = null;
+      const ratingEl = document.querySelector("div._3LWZlK, div.XQDdHH");
+      if (ratingEl) {
+        try { rating = parseFloat(ratingEl.innerText.trim()); } catch (e) {}
+      }
+
+      let images = [];
+      const imgEl = document.querySelector("img._396cs4._3exPp9, img.DByuf4, img._2r_T1I");
+      if (imgEl && imgEl.src && !imgEl.src.startsWith("data:")) {
+        images.push(imgEl.src);
+      }
+
+      return {
+        title,
+        price,
+        currency,
+        brand_claimed: brand,
+        seller_name: seller,
+        seller_rating: rating,
+        description: document.querySelector("div._1mXcCf")?.innerText?.trim() || "",
+        image_urls: images,
+        is_search_page: false
+      };
     }
 
-    const brandEl = document.querySelector("span.mEh187, span.G6XhRU");
-    const brand = brandEl ? brandEl.innerText.trim() : null;
+    // Flipkart Search Results page
+    const searchCards = document.querySelectorAll("div._1AtVbE, div._2kHMtA, div._4ddWXP, div[data-id]");
+    if (searchCards.length > 0) {
+      for (const card of searchCards) {
+        const brandEl = card.querySelector("div._2WkVRV");
+        const titleLink = card.querySelector("a.IRpwTa, div._4rR01T, a.s1Q9rs");
+        const priceEl = card.querySelector("div._30jeq3, div.Nx9bqj");
+        const imgEl = card.querySelector("img._396cs4, img.DByuf4");
+        const ratingEl = card.querySelector("div._3LWZlK, div.XQDdHH");
 
-    const sellerEl = document.querySelector("#sellerName, div._1RLviY");
-    const seller = sellerEl ? sellerEl.innerText.replace(/Seller:\s*/i, "").trim() : null;
+        if (titleLink && titleLink.innerText.trim()) {
+          const brand = brandEl ? brandEl.innerText.trim() : null;
+          const title = brand ? `${brand} ${titleLink.innerText.trim()}` : titleLink.innerText.trim();
 
-    let rating = null;
-    const ratingEl = document.querySelector("div._3LWZlK, div.XQDdHH");
-    if (ratingEl) {
-      rating = parseFloat(ratingEl.innerText.trim());
+          let price = null;
+          if (priceEl) {
+            const match = priceEl.innerText.match(/[0-9,.]+/);
+            if (match) price = parseFloat(match[0].replace(/,/g, ""));
+          }
+
+          let images = [];
+          if (imgEl && imgEl.src) images.push(imgEl.src);
+
+          let rating = null;
+          if (ratingEl) {
+            try { rating = parseFloat(ratingEl.innerText.trim()); } catch (e) {}
+          }
+
+          return {
+            title,
+            price,
+            currency,
+            brand_claimed: brand,
+            seller_name: "Flipkart Seller",
+            seller_rating: rating,
+            description: "Product extracted from Flipkart search results.",
+            image_urls: images,
+            is_search_page: true
+          };
+        }
+      }
     }
 
-    let images = [];
-    const imgEl = document.querySelector("img._396cs4._3exPp9, img.DByuf4");
-    if (imgEl && imgEl.src && !imgEl.src.startsWith("data:")) {
-      images.push(imgEl.src);
-    }
-
-    return {
-      title,
-      price,
-      currency: "INR",
-      brand_claimed: brand,
-      seller_name: seller,
-      seller_rating: rating,
-      description: document.querySelector("div._1mXcCf")?.innerText?.trim() || "",
-      image_urls: images
-    };
+    return null;
   }
 
   // Tier 4: Generic Fallback Scanner
   function extractGenericFallback() {
     const h1 = document.querySelector("h1");
-    const title = h1 ? h1.innerText.trim() : document.title;
+    let title = h1 ? h1.innerText.trim() : document.title;
+    // Clean up generic search title if present
+    if (title.toLowerCase().includes("amazon.com") || title.toLowerCase().includes("search results")) {
+      const firstH2 = document.querySelector("h2 a span, h2 span");
+      if (firstH2 && firstH2.innerText.trim()) {
+        title = firstH2.innerText.trim();
+      }
+    }
 
     let price = null;
-    // Look for price patterns in text
     const textNodes = document.body.innerText;
     const priceRegex = /(?:\$|£|€|₹)\s?([0-9,]+(?:\.[0-9]{2})?)/g;
     const match = priceRegex.exec(textNodes);
@@ -201,11 +323,10 @@
       price = parseFloat(match[1].replace(/,/g, ""));
     }
 
-    // Prominent images
     const images = [];
     const imgElements = Array.from(document.querySelectorAll("img"));
     for (const img of imgElements) {
-      if (img.src && !img.src.startsWith("data:") && (img.width > 200 || img.naturalWidth > 200)) {
+      if (img.src && !img.src.startsWith("data:") && (img.width > 150 || img.naturalWidth > 150)) {
         images.push(img.src);
         if (images.length >= 3) break;
       }
@@ -214,25 +335,25 @@
     return {
       title: title,
       price: price,
-      currency: "USD",
+      currency: detectCurrency(),
       brand_claimed: null,
       seller_name: null,
       seller_rating: null,
       seller_reviews_count: null,
       description: "",
-      image_urls: images
+      image_urls: images,
+      is_search_page: false
     };
   }
 
   // Master Extraction Cascade
   function extractPageProduct() {
-    const jsonLd = extractJsonLd();
     const amazon = extractAmazon();
     const flipkart = extractFlipkart();
+    const jsonLd = extractJsonLd();
     const og = extractOpenGraph();
     const generic = extractGenericFallback();
 
-    // Prefer high-fidelity structured data, merge fallbacks
     const candidate = amazon || flipkart || jsonLd || og || generic;
     const backup = og || generic;
 
@@ -240,13 +361,14 @@
       url: window.location.href,
       title: candidate.title || backup.title || document.title,
       price: candidate.price !== null ? candidate.price : backup.price,
-      currency: candidate.currency || backup.currency || "USD",
+      currency: candidate.currency || backup.currency || detectCurrency(),
       brand_claimed: candidate.brand_claimed || backup.brand_claimed || null,
       seller_name: candidate.seller_name || backup.seller_name || null,
       seller_rating: candidate.seller_rating !== null ? candidate.seller_rating : backup.seller_rating,
       seller_reviews_count: candidate.seller_reviews_count || backup.seller_reviews_count || null,
       description: candidate.description || backup.description || "",
-      image_urls: (candidate.image_urls && candidate.image_urls.length > 0) ? candidate.image_urls : (backup.image_urls || [])
+      image_urls: (candidate.image_urls && candidate.image_urls.length > 0) ? candidate.image_urls : (backup.image_urls || []),
+      is_search_page: candidate.is_search_page || false
     };
   }
 
@@ -263,7 +385,7 @@
     return true;
   });
 
-  // Expose for testing if running in node/jest
+  // Expose for testing
   if (typeof module !== "undefined" && module.exports) {
     module.exports = {
       extractJsonLd,

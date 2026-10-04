@@ -39,6 +39,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.responses import FileResponse, Response
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    icon_path = BASE_DIR / "extension" / "icons" / "icon16.png"
+    if icon_path.exists():
+        return FileResponse(icon_path, media_type="image/png")
+    return Response(status_code=204)
+
 # Global module singletons
 BRANDS_FILE = BASE_DIR / "data" / "brands" / "brands.json"
 CHECKPOINT_FILE = BASE_DIR / "ml" / "checkpoints" / "fusion_weights.npz"
