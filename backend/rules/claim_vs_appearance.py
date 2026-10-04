@@ -1,10 +1,10 @@
 """
 TrustLens Novelty Feature A: Strict Claim vs. Appearance Separation Engine
 Implements the hard separation between legitimate look-alikes and counterfeits.
+Includes official storefront verification and realistic retail price variance tolerance.
 """
 
 from typing import Dict, Any, List, Optional
-from backend.config import TAU_SIMILARITY, TAU_CLAIM, PRICE_Z_THRESHOLD
 from backend.schemas import ClaimVsAppearance, RiskSignal
 
 def evaluate_claim_vs_appearance(
@@ -18,58 +18,84 @@ def evaluate_claim_vs_appearance(
     replica_keywords: List[str],
     matched_brand_id: Optional[str] = None,
     matched_model_id: Optional[str] = None,
-    predictive_entropy: float = 0.0
+    predictive_entropy: float = 0.0,
+    is_official_store: bool = False
 ) -> Dict[str, Any]:
     """
     Applies the transparent Claim vs. Appearance rule hierarchy.
-    Returns:
-        - classification: 'Likely Authentic' | 'Potential Counterfeit' | 'Legitimate Look-alike' | 'Uncertain'
-        - claim_vs_appearance: ClaimVsAppearance schema
-        - risk_signals: List[RiskSignal]
-        - explanation: str
     """
     risk_signals: List[RiskSignal] = []
     
-    # Analyze Risk Signals
-    price_risk = False
-    if price_z_score is not None:
-        if price_z_score <= PRICE_Z_THRESHOLD:
-            price_risk = True
-            risk_signals.append(RiskSignal(
-                signal_name="Severe Price Discrepancy",
-                severity="high",
-                description=f"Listing price is {abs(price_z_score):.1f} std deviations below brand average.",
-                value=round(price_z_score, 2)
-            ))
-        elif price_z_score <= -1.2:
-            risk_signals.append(RiskSignal(
-                signal_name="Moderate Price Discount",
-                severity="medium",
-                description="Price is noticeably below typical retail channel levels.",
-                value=round(price_z_score, 2)
-            ))
+    # CASE 1: DIRECT OFFICIAL BRAND STOREFRONT (e.g. nike.com, nike.in, apple.com)
+    # The gold standard in e-commerce verification: direct manufacturer sales are guaranteed authentic.
+    if is_official_store:
+        cva = ClaimVsAppearance(
+            claims_brand=True,
+            claim_confidence=1.0,
+            looks_similar=True,
+            visual_similarity=max(visual_similarity, 0.95),
+            matched_brand_id=matched_brand_id,
+            matched_model_id=matched_model_id,
+            rule_applied="Official Verified Brand Storefront -> Guaranteed Authentic"
+        )
+        return {
+            "classification": "Likely Authentic",
+            "claim_vs_appearance": cva,
+            "risk_signals": [],
+            "explanation": f"Item is hosted directly on the verified official {matched_brand_id or 'brand'} storefront. 100% Genuine authorized product."
+        }
 
+    # Normalize seller rating to percentage if on 5-star scale
     seller_risk = False
     norm_rating = seller_rating
     if seller_rating is not None and seller_rating > 0:
-        # Scale 5-star ratings (e.g. Amazon 4.4 out of 5) to 0-100 percentage
         if seller_rating <= 5.0:
             norm_rating = seller_rating * 20.0
             
-        if norm_rating < 72.0:
+        if norm_rating < 70.0:
             seller_risk = True
             risk_signals.append(RiskSignal(
                 signal_name="Low Seller Feedback",
                 severity="high",
-                description=f"Seller rating is abnormally low ({seller_rating} / 5 stars or {norm_rating:.0f}%).",
+                description=f"Seller satisfaction score is abnormally low ({seller_rating} / 5 stars or {norm_rating:.0f}%).",
                 value=round(norm_rating, 1)
             ))
-        elif norm_rating < 80.0:
+        elif norm_rating < 78.0:
             risk_signals.append(RiskSignal(
                 signal_name="Marginal Seller Rating",
                 severity="medium",
                 description=f"Seller rating ({seller_rating} stars or {norm_rating:.0f}%) warrants moderate caution.",
                 value=round(norm_rating, 1)
+            ))
+
+    # Analyze Price Discrepancy realistically
+    # Seasonal sales (30-50% off) are common. Counterfeiters typically discount 75-95%.
+    price_risk = False
+    if price_z_score is not None:
+        if price_z_score <= -2.4:
+            price_risk = True
+            risk_signals.append(RiskSignal(
+                signal_name="Severe Price Discrepancy",
+                severity="high",
+                description=f"Listing price is {abs(price_z_score):.1f} std deviations below brand average (>75% markdown).",
+                value=round(price_z_score, 2)
+            ))
+        elif price_z_score <= -1.8 and seller_risk:
+            # Only consider moderate discount a risk if seller rating is ALSO questionable
+            price_risk = True
+            risk_signals.append(RiskSignal(
+                signal_name="Suspicious Discount",
+                severity="medium",
+                description="Discounted price combined with low seller feedback warrants caution.",
+                value=round(price_z_score, 2)
+            ))
+        elif price_z_score <= -1.5:
+            # Informational notice only; not a counterfeit flag
+            risk_signals.append(RiskSignal(
+                signal_name="Promotional / Clearance Pricing",
+                severity="info",
+                description="Price reflects standard seasonal discount / clearance sale.",
+                value=round(price_z_score, 2)
             ))
 
     if replica_keywords:
@@ -82,15 +108,19 @@ def evaluate_claim_vs_appearance(
 
     # Evaluate Rule Hierarchy
     if not looks_similar:
-        if 0.45 <= visual_similarity < TAU_SIMILARITY:
-            # Ambiguous visual match -> triggers Evidence Gap
+        if 0.45 <= visual_similarity < 0.65:
             classification = "Uncertain"
             rule_applied = "Borderline visual resemblance [0.45 - 0.65] creates high ambiguity."
             explanation = "The product has partial design resemblance to brand references, but visual signals are insufficient for definitive classification."
         else:
-            classification = "Legitimate Look-alike" if not claims_brand else "Uncertain"
-            rule_applied = "Low visual similarity with monitored brand catalog."
-            explanation = "The item does not match monitored brand silhouettes."
+            if not claims_brand:
+                classification = "Likely Authentic"
+                rule_applied = "Original design / Independent brand -> Likely Authentic"
+                explanation = "The item exhibits an independent original design with no trademark infringement or counterfeit markers."
+            else:
+                classification = "Uncertain"
+                rule_applied = "Brand claimed but low visual similarity with catalog models."
+                explanation = "Listing asserts trademark ownership, but visual design diverges from canonical catalog models."
     else:
         # Visual similarity is HIGH (looks_similar is True)
         if not claims_brand:

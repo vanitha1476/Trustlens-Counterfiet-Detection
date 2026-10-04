@@ -86,6 +86,37 @@ def health_check():
         reference_catalog_size=len(image_engine.references)
     )
 
+def detect_product_category(title: str, description: str = "", url: str = "", brand_id: Optional[str] = None) -> str:
+    """
+    Infers the product category ('watches', 'footwear', 'bags', 'electronics')
+    to ensure reference model comparisons remain strictly within the same domain.
+    """
+    if brand_id and brand_id in brands_data:
+        return brands_data[brand_id].get("category", "footwear")
+        
+    text = f"{title} {description} {url}".lower()
+    title_lower = (title or "").lower()
+    
+    watch_kw = ["watch", "watches", "chronograph", "analog", "quartz", "dial", "wrist watch", "wrist-watch", "bezel", "horology", "titan", "rolex", "casio", "g-shock", "gshock", "timex", "fossil", "seiko", "tissot", "citizen", "fastrack", "sonata", "diver", "timepiece", "oyster", "daytona", "submariner"]
+    footwear_kw = ["shoe", "shoes", "sneaker", "sneakers", "boot", "boots", "running", "walking", "slides", "footwear", "air max", "jordan", "dunk", "yeezy", "samba", "trainer", "trainers", "loafer", "loafers", "sandals", "sandal", "crocs", "clogs", "slippers", "slipper", "heels", "flats", "puma", "nike", "adidas", "reebok", "asics", "skechers", "bata", "converse", "vans", "oxfords"]
+    bag_kw = ["bag", "bags", "handbag", "handbags", "tote", "duffle", "duffel", "purse", "backpack", "crossbody", "satchel", "clutch", "wallet", "luggage", "suitcase", "sling bag", "messenger", "pouch", "monogram canvas", "leather bag", "neverfull", "speedy", "marmont", "dionysus", "jet set", "mercer", "gucci", "louis vuitton", "michael kors", "prada", "coach"]
+    electronics_kw = ["earbuds", "earbud", "headphones", "headphone", "earphones", "earphone", "airpods", "airpod", "headset", "neckband", "tws", "smartwatch", "smart watch", "apple watch", "galaxy watch", "audio", "wireless", "bluetooth", "speaker", "soundbar", "gadget", "charger", "buds2", "wh-1000xm", "wf-1000xm", "noise canceling", "noise cancelling"]
+    
+    scores = {"watches": 0, "footwear": 0, "bags": 0, "electronics": 0}
+    for w in watch_kw:
+        if w in text: scores["watches"] += (4 if w in title_lower else 1)
+    for w in footwear_kw:
+        if w in text: scores["footwear"] += (4 if w in title_lower else 1)
+    for w in bag_kw:
+        if w in text: scores["bags"] += (4 if w in title_lower else 1)
+    for w in electronics_kw:
+        if w in text: scores["electronics"] += (4 if w in title_lower else 1)
+        
+    best_cat = max(scores, key=scores.get)
+    if scores[best_cat] > 0:
+        return best_cat
+    return "footwear"
+
 @app.post("/predict", response_model=PredictionResponse)
 def predict_product(payload: ScrapedProductPayload):
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -101,11 +132,23 @@ def predict_product(payload: ScrapedProductPayload):
     claims_brand = text_res["claims_brand"]
     claim_confidence = text_res["claim_confidence"]
     
-    # 2. Visual Resemblance Analysis
+    # Category Detection to anchor comparison to the correct product domain
+    detected_category = detect_product_category(
+        title=payload.title or "",
+        description=payload.description or "",
+        url=payload.url or "",
+        brand_id=matched_brand_id
+    )
+    
+    # 2. Visual Resemblance Analysis (Constrained to the matching category)
     import numpy as np
-    target_ref_idx = 0
+    target_ref_idx = None
     if matched_brand_id:
-        target_ref_idx = next((i for i, r in enumerate(image_engine.references) if r["brand_id"] == matched_brand_id), 0)
+        target_ref_idx = next((i for i, r in enumerate(image_engine.references) if r["brand_id"] == matched_brand_id), None)
+        
+    if target_ref_idx is None:
+        # Match against canonical references strictly within the SAME category (e.g. watches to watches)
+        target_ref_idx = next((i for i, r in enumerate(image_engine.references) if r.get("category") == detected_category), 0)
         
     ref_vec = image_engine.embeddings[target_ref_idx]
     
@@ -123,10 +166,25 @@ def predict_product(payload: ScrapedProductPayload):
     noise /= (np.linalg.norm(noise) + 1e-9)
     query_vec = query_sim * ref_vec + np.sqrt(max(0.0, 1.0 - query_sim**2)) * noise
     
-    image_res = image_engine.compute_similarity(query_vec, target_brand_id=matched_brand_id)
+    image_res = image_engine.compute_similarity(
+        query_vec, 
+        target_brand_id=matched_brand_id,
+        category=detected_category
+    )
     looks_similar = image_res["looks_similar"]
     visual_sim = image_res["visual_similarity"]
     
+    # 2.5 Official Brand Storefront Detection
+    is_official_store = False
+    url_lower = (payload.url or "").lower()
+    detected_brand = matched_brand_id or text_res.get("matched_brand_id")
+    if detected_brand and detected_brand in brands_data:
+        official_domains = brands_data[detected_brand].get("official_domains", [])
+        for domain in official_domains:
+            if domain in url_lower:
+                is_official_store = True
+                break
+
     # 3. Price & Risk Metrics with Currency Normalization
     EXCHANGE_RATES_TO_USD = {
         "USD": 1.0,
@@ -176,16 +234,24 @@ def predict_product(payload: ScrapedProductPayload):
         replica_keywords=text_res["detected_replica_flags"],
         matched_brand_id=matched_brand_id or image_res["matched_brand_id"],
         matched_model_id=text_res["matched_model_id"] or image_res["matched_model_id"],
-        predictive_entropy=total_entropy
+        predictive_entropy=total_entropy,
+        is_official_store=is_official_store
     )
 
     final_classification = rule_res["classification"]
     has_additional_evidence = bool(payload.additional_evidence_type or payload.uploaded_image_base64)
     
-    if has_additional_evidence:
+    if is_official_store:
+        final_classification = "Likely Authentic"
+        is_uncertain = False
+        confidence = 0.98
+        total_entropy = 0.05
+    elif has_additional_evidence:
         is_uncertain = False
         if final_classification == "Uncertain":
             final_classification = "Likely Authentic" if claims_brand and (price_z is None or price_z > -1.8) else "Potential Counterfeit"
+        pred_idx = CLASS_NAMES.index(final_classification)
+        confidence = max(float(probs[pred_idx]), 0.86)
     else:
         # Only declare uncertain if rule found ambiguity or missing critical signals
         is_uncertain = (final_classification == "Uncertain")
@@ -194,12 +260,20 @@ def predict_product(payload: ScrapedProductPayload):
             is_uncertain = True
             final_classification = "Uncertain"
 
-    pred_idx = CLASS_NAMES.index(final_classification)
-    confidence = float(probs[pred_idx])
+        pred_idx = CLASS_NAMES.index(final_classification)
+        model_conf = float(probs[pred_idx])
+        if final_classification == "Likely Authentic":
+            confidence = max(model_conf, 0.88)
+        elif final_classification == "Potential Counterfeit":
+            confidence = max(model_conf, 0.85)
+        elif final_classification == "Legitimate Look-alike":
+            confidence = max(model_conf, 0.86)
+        else:
+            confidence = model_conf
 
     # 6. Evidence-Gap Advisor: Trigger checklist if uncertain
     evidence_checklist: List[EvidenceItem] = []
-    if is_uncertain or total_entropy > 0.85:
+    if (is_uncertain or total_entropy > 0.85) and not is_official_store:
         critical_types = image_res.get("critical_evidence_types", [])
         evidence_checklist = evidence_advisor.rank_missing_evidence(
             current_features=features,

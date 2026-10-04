@@ -78,13 +78,14 @@ class TextClaimBaseline:
                     score += 0.35
                     break
                     
+            cur_model_id = None
             # 3. Model keyword matches
             for model in b_info["canonical_models"]:
                 m_keywords = [kw.lower() for kw in model.get("keywords", [])]
                 for kw in m_keywords:
                     if re.search(r"\b" + re.escape(kw) + r"\b", combined_text):
                         score += 0.20
-                        best_model_id = model["model_id"]
+                        cur_model_id = model["model_id"]
                         break
                         
             # Homage / Dupe penalty only if actual homage keywords are detected
@@ -94,6 +95,10 @@ class TextClaimBaseline:
             if score > max_claim_score:
                 max_claim_score = min(score, 1.0)
                 best_brand_id = b_id
+                if cur_model_id:
+                    best_model_id = cur_model_id
+                elif b_info["canonical_models"]:
+                    best_model_id = b_info["canonical_models"][0]["model_id"]
                 
         # Lower minimal threshold: if title clearly has brand name, it claims brand
         claims_brand = (max_claim_score >= 0.40)

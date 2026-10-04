@@ -21,10 +21,16 @@ class ImageSimilarityBaseline:
         self.embeddings = np.load(emb_path) # Shape (N, D), already L2-normalized
         self.tau_sim = 0.68
 
-    def compute_similarity(self, query_vector: np.ndarray, target_brand_id: Optional[str] = None) -> Dict[str, Any]:
+    def compute_similarity(
+        self, 
+        query_vector: np.ndarray, 
+        target_brand_id: Optional[str] = None,
+        category: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Computes cosine similarity against reference embeddings.
         If target_brand_id is provided, filters or ranks matches for that brand.
+        If category is provided, filters matches strictly within that category.
         """
         # Ensure query vector is normalized
         norm = np.linalg.norm(query_vector)
@@ -36,17 +42,18 @@ class ImageSimilarityBaseline:
         # Dot product with normalized reference vectors = cosine similarity
         similarities = np.dot(self.embeddings, q_norm)
         
+        candidate_indices = []
         if target_brand_id:
-            brand_indices = [i for i, r in enumerate(self.references) if r["brand_id"] == target_brand_id]
-            if brand_indices:
-                sub_sims = similarities[brand_indices]
-                best_sub_idx = brand_indices[np.argmax(sub_sims)]
-                best_sim = float(similarities[best_sub_idx])
-                best_match = self.references[best_sub_idx]
-            else:
-                best_idx = int(np.argmax(similarities))
-                best_sim = float(similarities[best_idx])
-                best_match = self.references[best_idx]
+            candidate_indices = [i for i, r in enumerate(self.references) if r["brand_id"] == target_brand_id]
+            
+        if not candidate_indices and category:
+            candidate_indices = [i for i, r in enumerate(self.references) if r.get("category") == category]
+
+        if candidate_indices:
+            sub_sims = similarities[candidate_indices]
+            best_sub_idx = candidate_indices[np.argmax(sub_sims)]
+            best_sim = float(similarities[best_sub_idx])
+            best_match = self.references[best_sub_idx]
         else:
             best_idx = int(np.argmax(similarities))
             best_sim = float(similarities[best_idx])

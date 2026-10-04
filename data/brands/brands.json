@@ -6,10 +6,11 @@
       "aliases": ["nike", "air jordan", "jordan", "swoosh", "nike sportswear"],
       "category": "footwear",
       "currency": "USD",
+      "official_domains": ["nike.com", "nike.in", "nike.co.uk", "nike.de", "nike.fr"],
       "price_stats": {
-        "mean": 140.0,
-        "std": 45.0,
-        "min_expected": 65.0
+        "mean": 110.0,
+        "std": 48.0,
+        "min_expected": 38.0
       },
       "canonical_models": [
         {
@@ -24,7 +25,7 @@
           "model_id": "nike_air_force_1_white",
           "name": "Air Force 1 '07 All White",
           "reference_price": 115.0,
-          "keywords": ["air force 1", "af1", "all white", "low"],
+          "keywords": ["air force 1", "af1", "all white", "low", "promina", "air max"],
           "key_visual_elements": ["perforated vamp", "silver deubre lace tag", "thick stitched midsole", "heel nike air embroidery"],
           "critical_evidence_types": ["inner_label", "stitching_closeup", "packaging_box"]
         }
@@ -36,10 +37,11 @@
       "aliases": ["adidas", "adidas originals", "yeezy", "three stripes"],
       "category": "footwear",
       "currency": "USD",
+      "official_domains": ["adidas.com", "adidas.in", "adidas.co.uk", "adidas.de"],
       "price_stats": {
-        "mean": 120.0,
-        "std": 40.0,
-        "min_expected": 55.0
+        "mean": 105.0,
+        "std": 45.0,
+        "min_expected": 35.0
       },
       "canonical_models": [
         {
@@ -66,6 +68,7 @@
       "aliases": ["rolex", "oyster perpetual", "geneve swiss"],
       "category": "watches",
       "currency": "USD",
+      "official_domains": ["rolex.com"],
       "price_stats": {
         "mean": 11500.0,
         "std": 3500.0,
@@ -96,10 +99,11 @@
       "aliases": ["casio", "g-shock", "gshock", "edifice", "baby-g"],
       "category": "watches",
       "currency": "USD",
+      "official_domains": ["casio.com", "casio.in", "casio-intl.com", "gshock.com", "gshock.casio.com"],
       "price_stats": {
         "mean": 85.0,
         "std": 45.0,
-        "min_expected": 22.0
+        "min_expected": 20.0
       },
       "canonical_models": [
         {
@@ -126,6 +130,7 @@
       "aliases": ["louis vuitton", "lv", "louis vuitton paris"],
       "category": "bags",
       "currency": "USD",
+      "official_domains": ["louisvuitton.com", "louisvuitton.in"],
       "price_stats": {
         "mean": 1950.0,
         "std": 600.0,
@@ -156,6 +161,7 @@
       "aliases": ["apple", "airpods", "apple watch"],
       "category": "electronics",
       "currency": "USD",
+      "official_domains": ["apple.com", "apple.in"],
       "price_stats": {
         "mean": 300.0,
         "std": 120.0,
@@ -177,6 +183,231 @@
           "keywords": ["apple watch series 9", "series 9 45mm", "s9 sip"],
           "key_visual_elements": ["edge-to-edge curved oled", "digital crown with haptic", "ceramic and sapphire crystal back"],
           "critical_evidence_types": ["serial_batch_code", "packaging_box", "seller_invoice"]
+        }
+      ]
+    },
+    {
+      "id": "titan",
+      "name": "Titan",
+      "aliases": ["titan", "titan watch", "titan watches", "fastrack", "sonata"],
+      "category": "watches",
+      "currency": "INR",
+      "official_domains": ["titan.co.in", "titanwatches.com", "tatacliq.com"],
+      "price_stats": {
+        "mean": 80.0,
+        "std": 35.0,
+        "min_expected": 20.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "titan_octane_chronograph",
+          "name": "Titan Octane Chronograph Watch",
+          "reference_price": 95.0,
+          "keywords": ["octane", "chronograph", "tachymeter", "sports watch"],
+          "key_visual_elements": ["tri-dial chronograph", "stainless steel case", "mineral glass dial"],
+          "critical_evidence_types": ["caseback_engraving", "warranty_card", "packaging_box"]
+        },
+        {
+          "model_id": "titan_neo_analog",
+          "name": "Titan Neo Classic Analog Watch",
+          "reference_price": 55.0,
+          "keywords": ["neo", "classic analog", "splash", "leather strap", "minimal dial"],
+          "key_visual_elements": ["sunray dial", "leather strap", "titan logo at 12"],
+          "critical_evidence_types": ["caseback_engraving", "packaging_box"]
+        },
+        {
+          "model_id": "titan_edge_quartz",
+          "name": "Titan Edge Slim Quartz Watch",
+          "reference_price": 140.0,
+          "keywords": ["edge", "ultra slim", "ceramic", "sapphire crystal"],
+          "key_visual_elements": ["ultra slim profile", "minimalist dial", "sapphire glass"],
+          "critical_evidence_types": ["caseback_engraving", "warranty_card"]
+        }
+      ]
+    },
+    {
+      "id": "puma",
+      "name": "Puma",
+      "aliases": ["puma", "puma motorsport", "cat logo", "formstrip", "puma suede"],
+      "category": "footwear",
+      "currency": "USD",
+      "official_domains": ["puma.com", "puma.in", "in.puma.com"],
+      "price_stats": {
+        "mean": 75.0,
+        "std": 32.0,
+        "min_expected": 25.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "puma_suede_classic",
+          "name": "Puma Suede Classic XXI",
+          "reference_price": 75.0,
+          "keywords": ["puma suede", "suede classic", "formstrip", "low top sneaker"],
+          "key_visual_elements": ["full suede upper", "synthetic leather lining", "puma formstrip overlay"],
+          "critical_evidence_types": ["inner_label", "formstrip_stitching", "packaging_box"]
+        },
+        {
+          "model_id": "puma_rs_x",
+          "name": "Puma RS-X Reinvention Sneaker",
+          "reference_price": 110.0,
+          "keywords": ["rs-x", "running system", "chunky sneaker", "rsx"],
+          "key_visual_elements": ["bulky retro silhouette", "mesh upper with leather overlays", "embossed heel piece"],
+          "critical_evidence_types": ["inner_label", "midsole_cushioning", "packaging_box"]
+        }
+      ]
+    },
+    {
+      "id": "fossil",
+      "name": "Fossil",
+      "aliases": ["fossil", "fossil watch", "fossil hybrid", "fossil grant"],
+      "category": "watches",
+      "currency": "USD",
+      "official_domains": ["fossil.com", "fossil.in"],
+      "price_stats": {
+        "mean": 125.0,
+        "std": 45.0,
+        "min_expected": 45.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "fossil_grant_chronograph",
+          "name": "Fossil Grant Chronograph Leather Watch",
+          "reference_price": 140.0,
+          "keywords": ["grant", "chronograph", "roman numerals", "leather strap"],
+          "key_visual_elements": ["roman numeral hour markers", "three sub-dials", "stainless steel bezel"],
+          "critical_evidence_types": ["caseback_engraving", "warranty_booklet", "packaging_tin"]
+        },
+        {
+          "model_id": "fossil_gen_6_smartwatch",
+          "name": "Fossil Gen 6 Smartwatch Touchscreen",
+          "reference_price": 240.0,
+          "keywords": ["gen 6", "smartwatch", "wear os", "touchscreen"],
+          "key_visual_elements": ["color amoled touchscreen", "two additional pushbuttons", "optical heart rate sensor back"],
+          "critical_evidence_types": ["serial_batch_code", "magnetic_charger", "packaging_box"]
+        }
+      ]
+    },
+    {
+      "id": "gucci",
+      "name": "Gucci",
+      "aliases": ["gucci", "gg", "gucci marmont", "gucci dionysus", "gucci bag"],
+      "category": "bags",
+      "currency": "USD",
+      "official_domains": ["gucci.com", "gucci.in"],
+      "price_stats": {
+        "mean": 1850.0,
+        "std": 650.0,
+        "min_expected": 950.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "gucci_gg_marmont_matelasse",
+          "name": "Gucci GG Marmont Matelassé Shoulder Bag",
+          "reference_price": 1750.0,
+          "keywords": ["gg marmont", "marmont", "matelasse", "chevron leather", "chain strap"],
+          "key_visual_elements": ["antique gold-toned double G hardware", "chevron matelassé leather with heart on back", "sliding chain strap"],
+          "critical_evidence_types": ["inner_leather_tag", "serial_number_deboss", "hardware_weight", "dustbag_font"]
+        },
+        {
+          "model_id": "gucci_dionysus_small",
+          "name": "Gucci Dionysus GG Supreme Shoulder Bag",
+          "reference_price": 2150.0,
+          "keywords": ["dionysus", "tiger head", "gg supreme", "sliding chain"],
+          "key_visual_elements": ["textured tiger head spur closure", "taupe suede detail", "gg supreme canvas"],
+          "critical_evidence_types": ["tiger_head_hardware", "serial_number_deboss", "dustbag_font"]
+        }
+      ]
+    },
+    {
+      "id": "michael_kors",
+      "name": "Michael Kors",
+      "aliases": ["michael kors", "mk", "michael michael kors", "mk bag"],
+      "category": "bags",
+      "currency": "USD",
+      "official_domains": ["michaelkors.com", "michaelkors.global", "michaelkors.in"],
+      "price_stats": {
+        "mean": 195.0,
+        "std": 65.0,
+        "min_expected": 70.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "mk_jet_set_tote",
+          "name": "Michael Kors Jet Set Large Saffiano Leather Tote",
+          "reference_price": 198.0,
+          "keywords": ["jet set", "saffiano tote", "mk tote", "shoulder bag"],
+          "key_visual_elements": ["cross-hatch saffiano leather", "gold-tone metallic hardware", "hanging mk medallion"],
+          "critical_evidence_types": ["mk_charm_hardware", "lining_pattern", "stitching_closeup"]
+        },
+        {
+          "model_id": "mk_mercer_satchel",
+          "name": "Michael Kors Mercer Medium Messenger Crossbody",
+          "reference_price": 228.0,
+          "keywords": ["mercer", "crossbody satchel", "pebbled leather", "padlock charm"],
+          "key_visual_elements": ["structured pebbled leather silhouette", "lock charm", "removable shoulder strap"],
+          "critical_evidence_types": ["mk_charm_hardware", "serial_tag", "stitching_closeup"]
+        }
+      ]
+    },
+    {
+      "id": "sony",
+      "name": "Sony",
+      "aliases": ["sony", "sony audio", "wh-1000xm", "wf-1000xm", "bravia"],
+      "category": "electronics",
+      "currency": "USD",
+      "official_domains": ["sony.com", "sony.co.in", "electronics.sony.com", "shopatsc.com"],
+      "price_stats": {
+        "mean": 220.0,
+        "std": 95.0,
+        "min_expected": 50.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "sony_wh_1000xm5",
+          "name": "Sony WH-1000XM5 Wireless Noise-Canceling Headphones",
+          "reference_price": 399.0,
+          "keywords": ["wh-1000xm5", "xm5", "over ear headphones", "anc"],
+          "key_visual_elements": ["noiseless design with step-less slider", "soft fit leather earcups", "matte finish surface"],
+          "critical_evidence_types": ["serial_batch_code", "carrying_case_texture", "packaging_box_font", "seller_invoice"]
+        },
+        {
+          "model_id": "sony_wf_1000xm5",
+          "name": "Sony WF-1000XM5 True Wireless Earbuds",
+          "reference_price": 299.0,
+          "keywords": ["wf-1000xm5", "wireless earbuds", "noise canceling earbuds", "anc tws"],
+          "key_visual_elements": ["glossy sides with matte touch sensor", "polyurethane foam ear tips", "compact charging case"],
+          "critical_evidence_types": ["serial_batch_code", "inner_lid_text", "packaging_box_font"]
+        }
+      ]
+    },
+    {
+      "id": "samsung",
+      "name": "Samsung",
+      "aliases": ["samsung", "galaxy buds", "galaxy watch", "samsung electronics"],
+      "category": "electronics",
+      "currency": "USD",
+      "official_domains": ["samsung.com", "samsung.in"],
+      "price_stats": {
+        "mean": 180.0,
+        "std": 80.0,
+        "min_expected": 45.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "samsung_galaxy_buds2_pro",
+          "name": "Samsung Galaxy Buds2 Pro Wireless Earbuds",
+          "reference_price": 229.0,
+          "keywords": ["galaxy buds2 pro", "buds2 pro", "galaxy buds", "samsung earbuds"],
+          "key_visual_elements": ["matte aerodynamic finish", "vent grill for airflow", "rounded square clamshell case"],
+          "critical_evidence_types": ["serial_batch_code", "case_matte_finish", "inner_lid_text"]
+        },
+        {
+          "model_id": "samsung_galaxy_watch6",
+          "name": "Samsung Galaxy Watch6 Bluetooth 44mm",
+          "reference_price": 299.0,
+          "keywords": ["galaxy watch6", "watch 6", "samsung smartwatch", "super amoled"],
+          "key_visual_elements": ["slim rotating digital bezel", "sapphire crystal glass", "one-click band release mechanism"],
+          "critical_evidence_types": ["serial_batch_code", "sensor_glass_back", "packaging_box"]
         }
       ]
     }
