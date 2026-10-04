@@ -1,0 +1,184 @@
+{
+  "brands": [
+    {
+      "id": "nike",
+      "name": "Nike",
+      "aliases": ["nike", "air jordan", "jordan", "swoosh", "nike sportswear"],
+      "category": "footwear",
+      "currency": "USD",
+      "price_stats": {
+        "mean": 140.0,
+        "std": 45.0,
+        "min_expected": 65.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "nike_air_jordan_1_chicago",
+          "name": "Air Jordan 1 Retro High OG Chicago",
+          "reference_price": 180.0,
+          "keywords": ["air jordan 1", "jordan 1 chicago", "high og", "retro high"],
+          "key_visual_elements": ["swoosh logo", "wings logo on collar", "red white black color blocking", "perforated toe box"],
+          "critical_evidence_types": ["inner_label", "stitching_closeup", "packaging_box", "serial_batch_code"]
+        },
+        {
+          "model_id": "nike_air_force_1_white",
+          "name": "Air Force 1 '07 All White",
+          "reference_price": 115.0,
+          "keywords": ["air force 1", "af1", "all white", "low"],
+          "key_visual_elements": ["perforated vamp", "silver deubre lace tag", "thick stitched midsole", "heel nike air embroidery"],
+          "critical_evidence_types": ["inner_label", "stitching_closeup", "packaging_box"]
+        }
+      ]
+    },
+    {
+      "id": "adidas",
+      "name": "Adidas",
+      "aliases": ["adidas", "adidas originals", "yeezy", "three stripes"],
+      "category": "footwear",
+      "currency": "USD",
+      "price_stats": {
+        "mean": 120.0,
+        "std": 40.0,
+        "min_expected": 55.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "adidas_yeezy_boost_350_zebra",
+          "name": "Yeezy Boost 350 V2 Zebra",
+          "reference_price": 230.0,
+          "keywords": ["yeezy 350", "boost 350", "v2 zebra", "sply-350"],
+          "key_visual_elements": ["primeknit zebra pattern", "red sply-350 mirror text", "boost sole cage", "translucent stripe"],
+          "critical_evidence_types": ["inner_label", "boost_sole_texture", "packaging_box", "serial_batch_code"]
+        },
+        {
+          "model_id": "adidas_samba_classic",
+          "name": "Samba Classic OG Black White",
+          "reference_price": 100.0,
+          "keywords": ["samba", "samba classic", "samba og"],
+          "key_visual_elements": ["suede t-toe overlay", "serrated 3-stripes", "gum rubber sole", "gold foil samba lettering"],
+          "critical_evidence_types": ["inner_label", "stitching_closeup", "packaging_box"]
+        }
+      ]
+    },
+    {
+      "id": "rolex",
+      "name": "Rolex",
+      "aliases": ["rolex", "oyster perpetual", "geneve swiss"],
+      "category": "watches",
+      "currency": "USD",
+      "price_stats": {
+        "mean": 11500.0,
+        "std": 3500.0,
+        "min_expected": 6500.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "rolex_submariner_date_126610ln",
+          "name": "Submariner Date 126610LN Cerachrom Black",
+          "reference_price": 10250.0,
+          "keywords": ["submariner", "submariner date", "126610ln", "oystersteel", "cerachrom"],
+          "key_visual_elements": ["black ceramic bezel", "cyclops date magnifier 2.5x", "mercedes hands", "coronet logo at 12"],
+          "critical_evidence_types": ["serial_batch_code", "cyclops_magnification_closeup", "guarantee_card", "seller_invoice"]
+        },
+        {
+          "model_id": "rolex_daytona_116500ln",
+          "name": "Cosmograph Daytona 116500LN White Panda",
+          "reference_price": 14550.0,
+          "keywords": ["daytona", "cosmograph", "panda", "116500ln"],
+          "key_visual_elements": ["tri-compax chronograph subdials", "cerachrom tachymetric scale", "screw-down pushers"],
+          "critical_evidence_types": ["serial_batch_code", "seller_invoice", "guarantee_card", "dial_macro_photo"]
+        }
+      ]
+    },
+    {
+      "id": "casio",
+      "name": "Casio",
+      "aliases": ["casio", "g-shock", "gshock", "edifice", "baby-g"],
+      "category": "watches",
+      "currency": "USD",
+      "price_stats": {
+        "mean": 85.0,
+        "std": 45.0,
+        "min_expected": 22.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "casio_gshock_ga2100_1a1",
+          "name": "G-Shock Carbon Core Guard All Black GA-2100-1A1",
+          "reference_price": 99.0,
+          "keywords": ["ga-2100", "casioak", "carbon core guard", "all black g-shock"],
+          "key_visual_elements": ["octagonal resin bezel", "stealth black dial", "analog-digital layout", "day subdial at 9"],
+          "critical_evidence_types": ["caseback_engraving", "serial_batch_code", "packaging_box"]
+        },
+        {
+          "model_id": "casio_vintage_a168wa",
+          "name": "Vintage Illuminator Digital A168WA-1",
+          "reference_price": 30.0,
+          "keywords": ["a168", "a168wa", "vintage digital", "illuminator"],
+          "key_visual_elements": ["chrome resin case", "stainless steel bracelet", "electroluminescent panel", "casio illuminator branding"],
+          "critical_evidence_types": ["caseback_engraving", "packaging_box"]
+        }
+      ]
+    },
+    {
+      "id": "louis_vuitton",
+      "name": "Louis Vuitton",
+      "aliases": ["louis vuitton", "lv", "louis vuitton paris"],
+      "category": "bags",
+      "currency": "USD",
+      "price_stats": {
+        "mean": 1950.0,
+        "std": 600.0,
+        "min_expected": 1100.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "lv_neverfull_mm_monogram",
+          "name": "Neverfull MM Monogram Canvas",
+          "reference_price": 2030.0,
+          "keywords": ["neverfull", "neverfull mm", "monogram canvas", "louis vuitton tote"],
+          "key_visual_elements": ["symmetrical monogram print", "natural cowhide leather trim", "golden brass hardware", "striped textile lining"],
+          "critical_evidence_types": ["date_code_rfid_chip", "heat_stamp_photo", "stitching_closeup", "seller_invoice"]
+        },
+        {
+          "model_id": "lv_speedy_30_monogram",
+          "name": "Speedy 30 Monogram Handbag",
+          "reference_price": 1550.0,
+          "keywords": ["speedy 30", "speedy monogram", "lv duffle"],
+          "key_visual_elements": ["continuous canvas piece", "rolled leather toron handles", "engraved brass padlock"],
+          "critical_evidence_types": ["heat_stamp_photo", "date_code_rfid_chip", "seller_invoice"]
+        }
+      ]
+    },
+    {
+      "id": "apple",
+      "name": "Apple",
+      "aliases": ["apple", "airpods", "apple watch"],
+      "category": "electronics",
+      "currency": "USD",
+      "price_stats": {
+        "mean": 300.0,
+        "std": 120.0,
+        "min_expected": 140.0
+      },
+      "canonical_models": [
+        {
+          "model_id": "apple_airpods_pro_2",
+          "name": "AirPods Pro (2nd Generation) USB-C",
+          "reference_price": 249.0,
+          "keywords": ["airpods pro 2", "airpods pro 2nd gen", "active noise cancellation", "magsafe usb-c"],
+          "key_visual_elements": ["glossy white in-ear stem", "black acoustic vent grills", "lanyard loop on case", "speaker holes on case bottom"],
+          "critical_evidence_types": ["serial_batch_code", "packaging_box_font", "inner_lid_text", "seller_invoice"]
+        },
+        {
+          "model_id": "apple_watch_series_9",
+          "name": "Apple Watch Series 9 GPS 45mm",
+          "reference_price": 429.0,
+          "keywords": ["apple watch series 9", "series 9 45mm", "s9 sip"],
+          "key_visual_elements": ["edge-to-edge curved oled", "digital crown with haptic", "ceramic and sapphire crystal back"],
+          "critical_evidence_types": ["serial_batch_code", "packaging_box", "seller_invoice"]
+        }
+      ]
+    }
+  ]
+}

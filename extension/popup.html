@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TrustLens - AI Authenticity Inspector</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <span class="lens-glow"></span>
+          &#x1F50E;
+        </div>
+        <div class="brand-text">
+          <h1>TrustLens</h1>
+          <span class="subtext">Multimodal Risk & Look-alike AI</span>
+        </div>
+      </div>
+      <div class="status-pill" id="backendStatusPill">
+        <span class="pulse-dot"></span>
+        <span id="backendStatusText">Online</span>
+      </div>
+    </header>
+
+    <!-- Demo Presets Bar (Quick viva testing without external tabs) -->
+    <section class="presets-section">
+      <span class="presets-label">Viva Demo Presets:</span>
+      <div class="presets-buttons">
+        <button class="preset-btn" data-preset="auth" title="Test Likely Authentic Nike">Authentic</button>
+        <button class="preset-btn" data-preset="fake" title="Test Potential Counterfeit Rolex">Counterfeit</button>
+        <button class="preset-btn" data-preset="lookalike" title="Test Legitimate Look-alike Invicta">Look-alike</button>
+        <button class="preset-btn" data-preset="uncertain" title="Test Uncertain Ambiguous Listing">Uncertain</button>
+      </div>
+    </section>
+
+    <!-- Main View Area -->
+    <main class="main-content">
+      <!-- Loading State -->
+      <div class="state-card loading-card" id="loadingState">
+        <div class="scanner-orbit">
+          <div class="orbit-ring"></div>
+          <div class="scanner-beam"></div>
+        </div>
+        <h3>Analyzing Listing Content</h3>
+        <p class="loading-subtext">Evaluating visual catalog similarity, brand claims & seller signals...</p>
+      </div>
+
+      <!-- Result Card -->
+      <div class="state-card result-card hidden" id="resultCard">
+        <!-- Verdict Banner -->
+        <div class="verdict-banner" id="verdictBanner">
+          <div class="verdict-header">
+            <span class="verdict-tag" id="verdictTag">VERDICT</span>
+            <span class="confidence-badge" id="confidenceBadge">94% Confidence</span>
+          </div>
+          <h2 class="verdict-title" id="verdictTitle">Likely Authentic</h2>
+          <p class="verdict-summary" id="verdictSummary">Listing matches reference catalog and exhibits standard market signals.</p>
+        </div>
+
+        <!-- Novelty Feature A: Claim vs. Appearance Diagnostic -->
+        <div class="diagnostic-box">
+          <div class="box-header">
+            <h3>Claim vs. Appearance Check</h3>
+            <span class="feature-tag">Novelty A</span>
+          </div>
+          
+          <div class="cva-grid">
+            <div class="cva-item" id="cvaClaimItem">
+              <span class="cva-label">Brand Claim</span>
+              <span class="cva-value" id="cvaClaimValue">Claimed</span>
+              <span class="cva-sub" id="cvaClaimConfidence">98% confidence</span>
+            </div>
+            <div class="cva-item" id="cvaVisualItem">
+              <span class="cva-label">Appearance Match</span>
+              <span class="cva-value" id="cvaVisualValue">91%</span>
+              <span class="cva-sub" id="cvaModelMatch">Ref: Submariner</span>
+            </div>
+            <div class="cva-item" id="cvaPriceItem">
+              <span class="cva-label">Price Z-Score</span>
+              <span class="cva-value" id="cvaPriceValue">-0.4</span>
+              <span class="cva-sub" id="cvaPriceSub">Market standard</span>
+            </div>
+          </div>
+
+          <div class="rule-applied-bar" id="ruleAppliedBar">
+            <span class="rule-icon">&#x2696;&#xFE0F;</span>
+            <span class="rule-text" id="ruleText">Rule: claims_brand AND looks_similar -> Authentic</span>
+          </div>
+        </div>
+
+        <!-- Risk Signals Section -->
+        <div class="risk-section hidden" id="riskSection">
+          <div class="box-header">
+            <h3>Detected Risk Flags</h3>
+          </div>
+          <div class="risk-tags" id="riskTags"></div>
+        </div>
+
+        <!-- Novelty Feature B: Evidence-Gap Advisor (Shown if Uncertain) -->
+        <div class="advisor-container hidden" id="advisorSection">
+          <div class="box-header">
+            <div class="advisor-title-group">
+              <h3>Evidence-Gap Advisor</h3>
+              <span class="feature-tag advisor-tag">Novelty B</span>
+            </div>
+            <span class="entropy-pill" id="entropyPill">High Ambiguity</span>
+          </div>
+          <p class="advisor-intro">
+            Classification is uncertain. Providing any of the missing evidence below will maximize uncertainty reduction:
+          </p>
+          <div class="evidence-list" id="evidenceList"></div>
+
+          <!-- Interactive Additional Evidence Upload -->
+          <div class="upload-box">
+            <h4>Provide Additional Evidence</h4>
+            <div class="upload-controls">
+              <select id="evidenceTypeSelect" class="evidence-select">
+                <option value="inner_label">&#x1F3F7;&#xFE0F; Inner Wash / Size Label Photo</option>
+                <option value="serial_batch_code">&#x1F522; Serial Number / Batch Code</option>
+                <option value="packaging_box">&#x1F4E6; Retail Box & Barcode Photo</option>
+                <option value="seller_invoice">&#x1F9FE; Purchase Receipt / Invoice</option>
+                <option value="stitching_closeup">&#x1F50D; Close-up of Stitching/Logo</option>
+              </select>
+              <input type="file" id="evidenceFileInput" accept="image/*" class="file-input">
+              <button id="submitEvidenceBtn" class="action-btn secondary-btn">Upload & Re-Score</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Offline / Error State -->
+      <div class="state-card error-card hidden" id="errorState">
+        <div class="error-icon">&#x26A0;&#xFE0F;</div>
+        <h3>Unable to Inspect</h3>
+        <p id="errorMessage">Could not connect to TrustLens backend on http://localhost:8000.</p>
+        <button id="retryBtn" class="action-btn retry-btn">Retry Connection</button>
+      </div>
+    </main>
+
+    <!-- Footer Actions -->
+    <footer class="app-footer">
+      <button id="rescanBtn" class="action-btn primary-btn">
+        <span class="btn-icon">&#x21BB;</span> Scan Current Page
+      </button>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
