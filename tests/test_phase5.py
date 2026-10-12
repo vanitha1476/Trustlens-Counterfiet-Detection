@@ -16,21 +16,47 @@ def test_popup_html_structure():
     html = html_path.read_text(encoding="utf-8")
     soup = BeautifulSoup(html, "html.parser")
     
-    # Check required novelty & UI element IDs
+    # Check required Traffic Light UI element IDs (new simplified UI)
     required_ids = [
-        "loadingState",
-        "resultCard",
-        "verdictBanner",
-        "verdictTitle",
-        "confidenceBadge",
-        "cvaClaimValue",
-        "cvaVisualValue",
-        "ruleText",
+        # Header
+        "statusDot",
+        "statusText",
+        # Traffic-light view + sub-states
+        "view-traffic",
+        "tl-loading",
+        "tl-result",
+        # Verdict ring / headline / subtitle
+        "tlRing",
+        "tlHeadline",
+        "tlSub",
+        # Scanned product bar
+        "scannedBar",
+        "scannedTitle",
+        "scannedBadge",
+        # Collapsible details
+        "detailsToggle",
+        "details-panel",
+        # CVA grid cells
+        "cvaClaim",
+        "cvaVisual",
+        "cvaPrice",
+        "ruleBar",
+        # Risk signals
+        "riskSection",
+        "riskList",
+        # Evidence-Gap Advisor (hidden by default, but present in DOM)
         "advisorSection",
-        "evidenceList",
+        "advisorList",
         "evidenceTypeSelect",
+        "evidenceFileInput",
         "submitEvidenceBtn",
-        "rescanBtn"
+        # Error view
+        "view-error",
+        "errorMsg",
+        "retryBtn",
+        # Footer
+        "rescanBtn",
+        "reportBtn",
     ]
     for element_id in required_ids:
         assert soup.find(id=element_id) is not None, f"Element #{element_id} missing in popup.html"

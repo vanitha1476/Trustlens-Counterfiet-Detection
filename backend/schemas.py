@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field
 
 class ScrapedProductPayload(BaseModel):
@@ -50,6 +50,42 @@ class PredictionResponse(BaseModel):
     evidence_checklist: List[EvidenceItem] = Field(default_factory=list, description="Ranked checklist if uncertain")
     explanation_summary: str = Field(description="Concise, plain-English summary of the verdict")
     timestamp: str
+    # Embedded traffic light for the zero-click interception layer
+    traffic_light: Optional["TrafficLightVerdict"] = Field(
+        default=None,
+        description="Simplified, user-facing verdict for the overlay and badge system"
+    )
+
+
+class TrafficLightVerdict(BaseModel):
+    """
+    Jargon-free verdict schema for non-technical users.
+    Drives the badge, the extension popup traffic light, and the warning overlay.
+    """
+    traffic_light: Literal["GREEN", "YELLOW", "RED"] = Field(
+        description="The safety signal. GREEN=safe, YELLOW=caution, RED=high risk."
+    )
+    headline: str = Field(
+        description="One short, bold statement shown at the top of the overlay (no jargon)."
+    )
+    sub_message: str = Field(
+        description="One plain-English sentence explaining why, shown below the headline."
+    )
+    should_intercept: bool = Field(
+        description="True if the warning overlay should be injected and shown to the user."
+    )
+    risk_score: float = Field(
+        description="Normalised risk score [0.0-1.0] for overlay intensity. 0=no risk, 1=maximum risk."
+    )
+    scanned_url: str = Field(
+        default="",
+        description="The product URL that was scanned to produce this verdict."
+    )
+
+
+# Resolve forward reference on PredictionResponse
+PredictionResponse.model_rebuild()
+
 
 class HealthResponse(BaseModel):
     status: str

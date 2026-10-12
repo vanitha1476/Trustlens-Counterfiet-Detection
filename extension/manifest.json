@@ -1,11 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "TrustLens: Counterfeit & Look-Alike Detector",
-  "version": "1.0.0",
-  "description": "Proactive multimodal counterfeit and look-alike detection powered by local Deep Learning.",
+  "name": "TrustLens: Shopping Safety Shield",
+  "version": "2.0.0",
+  "description": "Your proactive shopping bodyguard. Automatically scans products and intercepts risky payments before you get scammed.",
   "permissions": [
-    "activeTab",
-    "scripting"
+    "scripting",
+    "storage",
+    "tabs",
+    "webNavigation"
   ],
   "host_permissions": [
     "http://localhost:8000/*",
@@ -14,7 +16,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "TrustLens Inspection",
+    "default_title": "TrustLens Safety Report",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -33,6 +35,12 @@
         "content.js"
       ],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["overlay.js", "overlay.css"],
+      "matches": ["<all_urls>"]
     }
   ],
   "icons": {

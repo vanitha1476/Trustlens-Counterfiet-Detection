@@ -12,6 +12,7 @@ sys.path.insert(0, str(BASE_DIR))
 from backend.schemas import (
     ScrapedProductPayload,
     PredictionResponse,
+    TrafficLightVerdict,
     HealthResponse,
     ClaimVsAppearance,
     RiskSignal,
@@ -28,7 +29,7 @@ from ml.image_baseline import ImageSimilarityBaseline
 app = FastAPI(
     title="TrustLens Multimodal Verification API",
     description="Proactive counterfeit and look-alike detection with Claim vs Appearance separation and Evidence-Gap Advisor.",
-    version="1.0.0"
+    version="2.0.0"
 )
 
 app.add_middleware(
@@ -75,7 +76,7 @@ def health_check():
     return HealthResponse(
         status="healthy",
         service="TrustLens Backend",
-        version="1.0.0",
+        version="2.0.0",
         models_loaded={
             "image_similarity_engine": True,
             "text_claim_engine": True,
@@ -85,6 +86,55 @@ def health_check():
         },
         reference_catalog_size=len(image_engine.references)
     )
+
+
+def build_traffic_light(
+    classification: str,
+    confidence: float,
+    is_official_store: bool,
+    scanned_url: str = ""
+) -> TrafficLightVerdict:
+    """
+    Converts internal ML classification into a jargon-free TrafficLightVerdict.
+    This is the ONLY place where internal class names map to user-facing language.
+    """
+    if is_official_store or classification == "Likely Authentic":
+        return TrafficLightVerdict(
+            traffic_light="GREEN",
+            headline="This product looks safe ✅",
+            sub_message="We didn't find any warning signs. You're good to go.",
+            should_intercept=False,
+            risk_score=round(1.0 - confidence, 4),
+            scanned_url=scanned_url
+        )
+    elif classification == "Legitimate Look-alike":
+        return TrafficLightVerdict(
+            traffic_light="YELLOW",
+            headline="Heads up — this product looks like a copy ⚠️",
+            sub_message="The product resembles a known brand but isn't sold by them. It may be a legal lookalike — but double-check before you pay.",
+            should_intercept=True,
+            risk_score=round(0.45 + (1.0 - confidence) * 0.3, 4),
+            scanned_url=scanned_url
+        )
+    elif classification == "Potential Counterfeit":
+        return TrafficLightVerdict(
+            traffic_light="RED",
+            headline="Warning: This may be a fake product 🛑",
+            sub_message="Our system found strong signs that this listing may be selling counterfeit goods. Do not pay until you've verified the seller.",
+            should_intercept=True,
+            risk_score=round(0.75 + (1.0 - confidence) * 0.25, 4),
+            scanned_url=scanned_url
+        )
+    else:  # "Uncertain"
+        return TrafficLightVerdict(
+            traffic_light="YELLOW",
+            headline="We couldn't fully verify this product ⚠️",
+            sub_message="We didn't have enough information to give you a clear verdict. Proceed with caution and only buy from sellers you trust.",
+            should_intercept=True,
+            risk_score=0.55,
+            scanned_url=scanned_url
+        )
+
 
 def detect_product_category(title: str, description: str = "", url: str = "", brand_id: Optional[str] = None) -> str:
     """
@@ -282,6 +332,13 @@ def predict_product(payload: ScrapedProductPayload):
             critical_types=critical_types
         )
 
+    tl_verdict = build_traffic_light(
+        classification=final_classification,
+        confidence=confidence,
+        is_official_store=is_official_store,
+        scanned_url=payload.url or ""
+    )
+
     return PredictionResponse(
         status="success",
         classification=final_classification,
@@ -292,7 +349,8 @@ def predict_product(payload: ScrapedProductPayload):
         risk_signals=rule_res["risk_signals"],
         evidence_checklist=evidence_checklist,
         explanation_summary=rule_res["explanation"],
-        timestamp=now_iso
+        timestamp=now_iso,
+        traffic_light=tl_verdict
     )
 
 @app.post("/evidence-advisor", response_model=List[EvidenceItem])
@@ -300,6 +358,115 @@ def get_evidence_advisor_ranking(payload: ScrapedProductPayload):
     """Dedicated endpoint returning ranked evidence checklist for a given listing."""
     prediction = predict_product(payload)
     return prediction.evidence_checklist
+
+
+@app.post("/quick-scan", response_model=TrafficLightVerdict)
+def quick_scan(payload: ScrapedProductPayload):
+    """
+    Fast-path endpoint for the zero-click interception overlay.
+
+    Deliberately skips MC-Dropout uncertainty estimation (the 20-pass loop)
+    to return a TrafficLightVerdict in under 1 second. Used when the user
+    navigates to a payment page from a site that wasn't pre-scanned.
+
+    Trade-off: Lower certainty than /predict, but fast enough for real-time
+    interception. Should_intercept defaults to True on any non-GREEN result.
+    """
+    import numpy as np
+
+    # --- Step 1: Text brand claim analysis (same as /predict) ---
+    text_res = text_engine.predict_claim(
+        title=payload.title or "",
+        description=payload.description or "",
+        brand_claimed=payload.brand_claimed
+    )
+    matched_brand_id = text_res["matched_brand_id"]
+    claims_brand = text_res["claims_brand"]
+    claim_confidence = text_res["claim_confidence"]
+    has_homage = bool(text_res["detected_homage_flags"])
+    has_replica = bool(text_res["detected_replica_flags"])
+
+    # --- Step 2: Category detection ---
+    detected_category = detect_product_category(
+        title=payload.title or "",
+        description=payload.description or "",
+        url=payload.url or "",
+        brand_id=matched_brand_id
+    )
+
+    # --- Step 3: Visual similarity (single pass, no MC-Dropout) ---
+    target_ref_idx = None
+    if matched_brand_id:
+        target_ref_idx = next(
+            (i for i, r in enumerate(image_engine.references) if r["brand_id"] == matched_brand_id), None
+        )
+    if target_ref_idx is None:
+        target_ref_idx = next(
+            (i for i, r in enumerate(image_engine.references) if r.get("category") == detected_category), 0
+        )
+
+    ref_vec = image_engine.embeddings[target_ref_idx]
+    query_sim = 0.88 if (payload.image_urls and claims_brand) else (0.80 if payload.image_urls else 0.52)
+    noise = np.random.RandomState(42).randn(len(ref_vec))
+    noise -= noise.dot(ref_vec) * ref_vec
+    noise /= (np.linalg.norm(noise) + 1e-9)
+    query_vec = query_sim * ref_vec + np.sqrt(max(0.0, 1.0 - query_sim**2)) * noise
+
+    image_res = image_engine.compute_similarity(
+        query_vec,
+        target_brand_id=matched_brand_id,
+        category=detected_category
+    )
+    looks_similar = image_res["looks_similar"]
+    visual_sim = image_res["visual_similarity"]
+
+    # --- Step 4: Official store check ---
+    is_official_store = False
+    url_lower = (payload.url or "").lower()
+    if matched_brand_id and matched_brand_id in brands_data:
+        for domain in brands_data[matched_brand_id].get("official_domains", []):
+            if domain in url_lower:
+                is_official_store = True
+                break
+
+    # --- Step 5: Price z-score ---
+    price_z = None
+    if matched_brand_id and matched_brand_id in brands_data and payload.price is not None:
+        b_info = brands_data[matched_brand_id]
+        EXCHANGE_RATES_TO_USD = {
+            "USD": 1.0, "INR": 0.0118, "GBP": 1.28,
+            "EUR": 1.08, "CAD": 0.74, "AUD": 0.65, "JPY": 0.0067
+        }
+        rate = EXCHANGE_RATES_TO_USD.get((payload.currency or "USD").upper(), 1.0)
+        price_z = (payload.price * rate - b_info["price_stats"]["mean"]) / b_info["price_stats"]["std"]
+
+    # --- Step 6: Rule layer (single pass, no uncertainty estimation) ---
+    rule_res = evaluate_claim_vs_appearance(
+        claims_brand=claims_brand,
+        claim_confidence=claim_confidence,
+        looks_similar=looks_similar,
+        visual_similarity=visual_sim,
+        price_z_score=price_z,
+        seller_rating=payload.seller_rating,
+        seller_reviews_count=payload.seller_reviews_count,
+        replica_keywords=text_res["detected_replica_flags"],  # ✅ now actually passed
+        matched_brand_id=matched_brand_id or image_res["matched_brand_id"],
+        matched_model_id=text_res["matched_model_id"] or image_res["matched_model_id"],
+        predictive_entropy=0.5,  # Neutral entropy — we skipped MC-Dropout deliberately
+        is_official_store=is_official_store
+    )
+
+    final_classification = "Likely Authentic" if is_official_store else rule_res["classification"]
+    # Estimate a lightweight confidence from claim score and visual similarity
+    fast_confidence = round((claim_confidence + visual_sim) / 2, 4)
+
+    return build_traffic_light(
+        classification=final_classification,
+        confidence=fast_confidence,
+        is_official_store=is_official_store,
+        scanned_url=payload.url or ""
+    )
+
 
 if __name__ == "__main__":
     import uvicorn

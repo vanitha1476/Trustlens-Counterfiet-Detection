@@ -1,0 +1,108 @@
+/*
+ * TrustLens Overlay — overlay.css
+ * ════════════════════════════════════════════════════════════════
+ * Injected into the HOST PAGE's <head> (not inside the Shadow DOM)
+ * via: chrome.scripting.insertCSS({ files: ["overlay.css"] })
+ *
+ * Purpose:
+ *   1. Lock the host page from scrolling while the overlay is visible.
+ *   2. Provide a zero-size stacking-context anchor (#tl-overlay-root).
+ *   3. Measure & compensate for scrollbar width so layout doesn't shift.
+ *   4. Smooth mount / unmount transition on the host element.
+ *
+ * NOTE: ALL internal overlay styling lives inside the closed Shadow DOM
+ *       built by overlay.js — this file cannot reach those elements.
+ * ════════════════════════════════════════════════════════════════
+ */
+
+/* ── 1. Scrollbar-width custom property ────────────────────────
+   Calculated once when overlay.css is injected.
+   Consumed by the body padding-right rule below.
+   (If the browser supports scrollbar-gutter we skip this entirely.) */
+@property --tl-scrollbar-width {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+/* ── 2. Body scroll-lock while overlay is present ──────────────
+   :has() is broadly supported in Chrome 105+ (MV3 minimum is 88).
+   The overflow:hidden prevents the page from scrolling under the overlay.
+   padding-right compensates for the scrollbar disappearing so content
+   doesn't jump horizontally. */
+body:has(#tl-overlay-root) {
+  overflow: hidden !important;
+  /* Prevent layout shift when scrollbar disappears */
+  padding-right: var(--tl-scrollbar-width, 0px) !important;
+  /* Extra: prevent touch-scroll on mobile */
+  touch-action: none;
+}
+
+/* ── 3. Host element — zero-size stacking-context anchor ───────
+   #tl-overlay-root is a fixed, zero-size <div> appended to <body>.
+   It serves ONLY as the Shadow DOM host — the actual full-screen
+   overlay lives inside the Shadow DOM and covers the viewport via
+   its own  position: fixed; inset: 0;  rule. */
+#tl-overlay-root {
+  /* Fixed so it's removed from layout flow */
+  position: fixed;
+  top: 0;
+  left: 0;
+
+  /* Zero size — the overlay inside the shadow expands to fill the viewport */
+  width: 0;
+  height: 0;
+
+  /* Sit just below the shadow's internal z-index (2147483647) */
+  z-index: 2147483646;
+
+  /* The host element itself is transparent to clicks — shadow content handles them */
+  pointer-events: none;
+
+  /* Ensure nothing on the host page hides us */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+
+  /* No inherited styles from host page */
+  all: initial;
+  position: fixed;  /* re-assert after all:initial */
+  top: 0;
+  left: 0;
+  z-index: 2147483646;
+  pointer-events: none;
+  display: block;
+}
+
+/* ── 4. Restore pointer-events for Shadow DOM content ──────────
+   The host is pointer-events:none, but the Shadow DOM's internal
+   fixed overlay needs pointer-events. Shadow DOM slotted content
+   inherits pointer-events from the host so we reset it here.
+   Chrome's shadow-piercing behaviour means this selector does apply
+   to shadow children in the context of insertCSS. */
+#tl-overlay-root * {
+  pointer-events: auto;
+}
+
+/* ── 5. Data-carrier element (cleaned up by overlay.js) ────────
+   background.js may insert a zero-size <div id="tl-overlay-root-data">
+   to pass verdict JSON to overlay.js via data attributes.
+   Hidden from screen readers and layout. */
+#tl-overlay-root-data {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0;
+  height: 0;
+  position: absolute;
+  pointer-events: none;
+  aria-hidden: true;
+}
+
+/* ── 6. Smooth unmount fade ────────────────────────────────────
+   When overlay.js calls host.remove() the element is gone immediately,
+   but if we ever switch to an opacity-based remove we want a transition
+   ready. (Currently unused but harmless.) */
+#tl-overlay-root[data-tl-dismissing] {
+  opacity: 0;
+  transition: opacity 0.22s ease-out;
+}

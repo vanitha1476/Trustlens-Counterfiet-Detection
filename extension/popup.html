@@ -2,160 +2,430 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>TrustLens - AI Authenticity Inspector</title>
-  <link rel="stylesheet" href="popup.css">
+  <title>TrustLens — Shopping Safety Shield</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:  #10b981;
+      --yellow: #f59e0b;
+      --red:    #f43f5e;
+      --purple: #6366f1;
+      --bg:     #080c14;
+      --surface:#0f1623;
+      --border: #1e293b;
+      --text:   #f1f5f9;
+      --muted:  #64748b;
+      --subtle: #94a3b8;
+    }
+
+    html, body {
+      width: 400px;
+      min-height: 200px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ──────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand { display: flex; align-items: center; gap: 8px; }
+    .brand-icon { font-size: 20px; }
+    .brand-name { font-size: 15px; font-weight: 800; letter-spacing: -0.3px; }
+    .brand-name span { color: var(--purple); }
+
+    .status-dot {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--muted);
+      padding: 4px 10px;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+    }
+    .status-dot .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .status-dot.online .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.offline .dot { background: var(--red); }
+
+    /* ── Traffic Light (main verdict view) ──────────── */
+    #view-traffic {
+      padding: 20px 16px 8px;
+      text-align: center;
+    }
+
+    .tl-ring {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 44px;
+      position: relative;
+      transition: all 0.4s ease;
+    }
+    .tl-ring::before {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      opacity: 0.2;
+      animation: tl-ring-pulse 2s ease-in-out infinite;
+    }
+    @keyframes tl-ring-pulse {
+      0%, 100% { transform: scale(1); opacity: 0.2; }
+      50%       { transform: scale(1.08); opacity: 0.08; }
+    }
+
+    .tl-ring.green  { border-color: var(--green);  color: var(--green);  background: #10b98110; }
+    .tl-ring.yellow { border-color: var(--yellow); color: var(--yellow); background: #f59e0b10; }
+    .tl-ring.red    { border-color: var(--red);    color: var(--red);    background: #f43f5e10; }
+    .tl-ring.loading{ border-color: var(--purple); color: var(--purple); background: #6366f110; }
+
+    .tl-headline {
+      font-size: 17px;
+      font-weight: 800;
+      line-height: 1.3;
+      margin-bottom: 6px;
+    }
+    .tl-headline.green  { color: var(--green);  }
+    .tl-headline.yellow { color: var(--yellow); }
+    .tl-headline.red    { color: var(--red);    }
+    .tl-headline.loading{ color: var(--purple); }
+
+    .tl-sub {
+      font-size: 13px;
+      color: var(--subtle);
+      line-height: 1.55;
+      max-width: 320px;
+      margin: 0 auto 20px;
+    }
+
+    /* ── Demo Presets (for judges) ───────────────────── */
+    .presets-bar {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .presets-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      display: block;
+      margin-bottom: 7px;
+    }
+    .presets-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .preset-btn {
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--subtle);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .preset-btn:hover { border-color: var(--purple); color: var(--text); background: #6366f115; }
+    .preset-btn[data-preset="auth"]:hover     { border-color: var(--green);  color: var(--green); }
+    .preset-btn[data-preset="fake"]:hover     { border-color: var(--red);    color: var(--red);   }
+    .preset-btn[data-preset="lookalike"]:hover{ border-color: var(--yellow); color: var(--yellow);}
+    .preset-btn[data-preset="uncertain"]:hover{ border-color: var(--yellow); color: var(--yellow);}
+
+    /* ── Scanned item bar ────────────────────────────── */
+    .scanned-bar {
+      margin: 0 16px 12px;
+      padding: 8px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .scanned-bar .icon { font-size: 14px; margin-top: 1px; flex-shrink: 0; }
+    .scanned-title { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.4; display: block; }
+    .scanned-badge { font-size: 10px; color: var(--muted); margin-top: 2px; display: block; }
+
+    /* ── Details section (collapsible for judges) ─────── */
+    .details-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      cursor: pointer;
+      background: transparent;
+      border-left: none;
+      border-right: none;
+      border-bottom: none;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      width: 100%;
+      text-align: left;
+      transition: color 0.15s;
+    }
+    .details-toggle:hover { color: var(--text); }
+    .toggle-arrow { transition: transform 0.25s; font-style: normal; }
+    .details-toggle.open .toggle-arrow { transform: rotate(180deg); }
+
+    #details-panel { display: none; }
+    #details-panel.open { display: block; }
+
+    /* ── ML Detail Cards ─────────────────────────────── */
+    .detail-section { padding: 12px 16px; border-top: 1px solid var(--border); }
+    .detail-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+
+    .cva-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .cva-cell {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+    }
+    .cva-cell-label { font-size: 10px; color: var(--muted); display: block; margin-bottom: 4px; }
+    .cva-cell-value { font-size: 14px; font-weight: 700; display: block; }
+    .cva-cell-sub   { font-size: 10px; color: var(--muted); display: block; margin-top: 2px; }
+
+    .rule-bar {
+      margin-top: 8px;
+      padding: 7px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .risk-list { display: flex; flex-direction: column; gap: 6px; }
+    .risk-pill {
+      padding: 8px 10px;
+      background: var(--surface);
+      border-left: 3px solid var(--red);
+      border-radius: 0 8px 8px 0;
+    }
+    .risk-pill.medium { border-color: var(--yellow); }
+    .risk-pill.low    { border-color: var(--muted);  }
+    .risk-pill.info   { border-color: var(--purple);  }
+    .risk-pill-title  { font-size: 12px; font-weight: 600; display: block; }
+    .risk-pill-desc   { font-size: 11px; color: var(--muted); margin-top: 2px; display: block; }
+
+    .evidence-card {
+      padding: 8px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+    .evidence-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .evidence-title  { font-size: 12px; font-weight: 600; }
+    .evidence-drop   { font-size: 11px; color: var(--green); font-weight: 600; }
+    .evidence-desc   { font-size: 11px; color: var(--muted); line-height: 1.4; }
+
+    /* ── Loading Spinner ─────────────────────────────── */
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--purple);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error View ──────────────────────────────────── */
+    #view-error {
+      padding: 24px 16px;
+      text-align: center;
+    }
+    .error-icon { font-size: 36px; margin-bottom: 12px; }
+    .error-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .error-msg { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+
+    /* ── Footer ──────────────────────────────────────── */
+    .footer {
+      padding: 10px 16px 14px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      flex: 1;
+      padding: 9px 12px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn:hover { border-color: var(--purple); background: #6366f110; }
+    .btn.primary { background: var(--purple); border-color: var(--purple); color: #fff; }
+    .btn.primary:hover { opacity: 0.88; }
+
+    /* ── Utility ─────────────────────────────────────── */
+    .hidden { display: none !important; }
+  </style>
 </head>
 <body>
-  <div class="app-container">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="brand">
-        <div class="brand-icon">
-          <span class="lens-glow"></span>
-          &#x1F50E;
-        </div>
-        <div class="brand-text">
-          <h1>TrustLens</h1>
-          <span class="subtext">Multimodal Risk & Look-alike AI</span>
-        </div>
-      </div>
-      <div class="status-pill" id="backendStatusPill">
-        <span class="pulse-dot"></span>
-        <span id="backendStatusText">Online</span>
-      </div>
-    </header>
 
-    <!-- Demo Presets Bar (Quick viva testing without external tabs) -->
-    <section class="presets-section">
-      <span class="presets-label">Viva Demo Presets:</span>
-      <div class="presets-buttons">
-        <button class="preset-btn" data-preset="auth" title="Test Likely Authentic Nike">Authentic</button>
-        <button class="preset-btn" data-preset="fake" title="Test Potential Counterfeit Rolex">Counterfeit</button>
-        <button class="preset-btn" data-preset="lookalike" title="Test Legitimate Look-alike Invicta">Look-alike</button>
-        <button class="preset-btn" data-preset="uncertain" title="Test Uncertain Ambiguous Listing">Uncertain</button>
-      </div>
-    </section>
+  <!-- ── Header ──────────────────────────────────────── -->
+  <header class="header">
+    <div class="brand">
+      <span class="brand-icon">🔎</span>
+      <span class="brand-name">Trust<span>Lens</span></span>
+    </div>
+    <div class="status-dot" id="statusDot">
+      <div class="dot"></div>
+      <span id="statusText">Checking…</span>
+    </div>
+  </header>
 
-    <!-- Main View Area -->
-    <main class="main-content">
-      <!-- Loading State -->
-      <div class="state-card loading-card" id="loadingState">
-        <div class="scanner-orbit">
-          <div class="orbit-ring"></div>
-          <div class="scanner-beam"></div>
-        </div>
-        <h3>Analyzing Listing Content</h3>
-        <p class="loading-subtext">Evaluating visual catalog similarity, brand claims & seller signals...</p>
-      </div>
-
-      <!-- Result Card -->
-      <div class="state-card result-card hidden" id="resultCard">
-        <!-- Scanned Item Header -->
-        <div class="scanned-info-bar" id="scannedInfoBar">
-          <span class="scanned-icon">&#x1F4CD;</span>
-          <div class="scanned-text-group">
-            <span class="scanned-title" id="scannedTitle">Product Listing</span>
-            <span class="scanned-source-badge" id="scannedSourceBadge">Direct Page</span>
-          </div>
-        </div>
-
-        <!-- Verdict Banner -->
-        <div class="verdict-banner" id="verdictBanner">
-          <div class="verdict-header">
-            <span class="verdict-tag" id="verdictTag">VERDICT</span>
-            <span class="confidence-badge" id="confidenceBadge">94% Confidence</span>
-          </div>
-          <h2 class="verdict-title" id="verdictTitle">Likely Authentic</h2>
-          <p class="verdict-summary" id="verdictSummary">Listing matches reference catalog and exhibits standard market signals.</p>
-        </div>
-
-        <!-- Novelty Feature A: Claim vs. Appearance Diagnostic -->
-        <div class="diagnostic-box">
-          <div class="box-header">
-            <h3>Claim vs. Appearance Check</h3>
-            <span class="feature-tag">Novelty A</span>
-          </div>
-          
-          <div class="cva-grid">
-            <div class="cva-item" id="cvaClaimItem">
-              <span class="cva-label">Brand Claim</span>
-              <span class="cva-value" id="cvaClaimValue">Claimed</span>
-              <span class="cva-sub" id="cvaClaimConfidence">98% confidence</span>
-            </div>
-            <div class="cva-item" id="cvaVisualItem">
-              <span class="cva-label">Appearance Match</span>
-              <span class="cva-value" id="cvaVisualValue">91%</span>
-              <span class="cva-sub" id="cvaModelMatch">Ref: Submariner</span>
-            </div>
-            <div class="cva-item" id="cvaPriceItem">
-              <span class="cva-label">Price Z-Score</span>
-              <span class="cva-value" id="cvaPriceValue">-0.4</span>
-              <span class="cva-sub" id="cvaPriceSub">Market standard</span>
-            </div>
-          </div>
-
-          <div class="rule-applied-bar" id="ruleAppliedBar">
-            <span class="rule-icon">&#x2696;&#xFE0F;</span>
-            <span class="rule-text" id="ruleText">Rule: claims_brand AND looks_similar -> Authentic</span>
-          </div>
-        </div>
-
-        <!-- Risk Signals Section -->
-        <div class="risk-section hidden" id="riskSection">
-          <div class="box-header">
-            <h3>Detected Risk Flags</h3>
-          </div>
-          <div class="risk-tags" id="riskTags"></div>
-        </div>
-
-        <!-- Novelty Feature B: Evidence-Gap Advisor (Shown if Uncertain) -->
-        <div class="advisor-container hidden" id="advisorSection">
-          <div class="box-header">
-            <div class="advisor-title-group">
-              <h3>Evidence-Gap Advisor</h3>
-              <span class="feature-tag advisor-tag">Novelty B</span>
-            </div>
-            <span class="entropy-pill" id="entropyPill">High Ambiguity</span>
-          </div>
-          <p class="advisor-intro">
-            Classification is uncertain. Providing any of the missing evidence below will maximize uncertainty reduction:
-          </p>
-          <div class="evidence-list" id="evidenceList"></div>
-
-          <!-- Interactive Additional Evidence Upload -->
-          <div class="upload-box">
-            <h4>Provide Additional Evidence</h4>
-            <div class="upload-controls">
-              <select id="evidenceTypeSelect" class="evidence-select">
-                <option value="inner_label">&#x1F3F7;&#xFE0F; Inner Wash / Size Label Photo</option>
-                <option value="serial_batch_code">&#x1F522; Serial Number / Batch Code</option>
-                <option value="packaging_box">&#x1F4E6; Retail Box & Barcode Photo</option>
-                <option value="seller_invoice">&#x1F9FE; Purchase Receipt / Invoice</option>
-                <option value="stitching_closeup">&#x1F50D; Close-up of Stitching/Logo</option>
-              </select>
-              <input type="file" id="evidenceFileInput" accept="image/*" class="file-input">
-              <button id="submitEvidenceBtn" class="action-btn secondary-btn">Upload & Re-Score</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Offline / Error State -->
-      <div class="state-card error-card hidden" id="errorState">
-        <div class="error-icon">&#x26A0;&#xFE0F;</div>
-        <h3>Unable to Inspect</h3>
-        <p id="errorMessage">Could not connect to TrustLens backend on http://localhost:8000.</p>
-        <button id="retryBtn" class="action-btn retry-btn">Retry Connection</button>
-      </div>
-    </main>
-
-    <!-- Footer Actions -->
-    <footer class="app-footer">
-      <button id="rescanBtn" class="action-btn primary-btn">
-        <span class="btn-icon">&#x21BB;</span> Scan Current Page
-      </button>
-    </footer>
+  <!-- ── Demo Presets ────────────────────────────────── -->
+  <div class="presets-bar">
+    <span class="presets-label">⚡ Demo Presets</span>
+    <div class="presets-row">
+      <button class="preset-btn" data-preset="auth">✅ Authentic</button>
+      <button class="preset-btn" data-preset="fake">🛑 Counterfeit</button>
+      <button class="preset-btn" data-preset="lookalike">⚠️ Look-alike</button>
+      <button class="preset-btn" data-preset="uncertain">❓ Uncertain</button>
+    </div>
   </div>
+
+  <!-- ── Traffic Light View (primary) ───────────────── -->
+  <div id="view-traffic">
+
+    <!-- Loading sub-state -->
+    <div id="tl-loading" style="display:flex; flex-direction:column; align-items:center; gap:14px; padding:20px 0 16px;">
+      <div class="spinner"></div>
+      <p style="font-size:13px; color:var(--muted);">Scanning this page…</p>
+    </div>
+
+    <!-- Result sub-state -->
+    <div id="tl-result" class="hidden">
+      <div class="tl-ring" id="tlRing">🔎</div>
+      <h2 class="tl-headline" id="tlHeadline">Scanning…</h2>
+      <p class="tl-sub" id="tlSub"></p>
+
+      <!-- Scanned product info -->
+      <div class="scanned-bar" id="scannedBar">
+        <span class="icon">📌</span>
+        <div>
+          <span class="scanned-title" id="scannedTitle">Product Listing</span>
+          <span class="scanned-badge" id="scannedBadge">Current page</span>
+        </div>
+      </div>
+
+      <!-- Details toggle for ML depth (judges) -->
+      <button class="details-toggle" id="detailsToggle">
+        <span>View AI Analysis Details</span>
+        <span class="toggle-arrow" aria-hidden="true">▾</span>
+      </button>
+
+      <div id="details-panel">
+
+        <!-- Claim vs Appearance -->
+        <div class="detail-section">
+          <div class="detail-section-title">Claim vs. Appearance Check</div>
+          <div class="cva-grid">
+            <div class="cva-cell">
+              <span class="cva-cell-label">Brand Claim</span>
+              <span class="cva-cell-value" id="cvaClaim">—</span>
+              <span class="cva-cell-sub" id="cvaClaimConf">—</span>
+            </div>
+            <div class="cva-cell">
+              <span class="cva-cell-label">Visual Match</span>
+              <span class="cva-cell-value" id="cvaVisual">—</span>
+              <span class="cva-cell-sub" id="cvaModel">—</span>
+            </div>
+            <div class="cva-cell">
+              <span class="cva-cell-label">Price Signal</span>
+              <span class="cva-cell-value" id="cvaPrice">—</span>
+              <span class="cva-cell-sub" id="cvaPriceSub">—</span>
+            </div>
+          </div>
+          <div class="rule-bar" id="ruleBar">—</div>
+        </div>
+
+        <!-- Risk Signals -->
+        <div class="detail-section hidden" id="riskSection">
+          <div class="detail-section-title">Risk Flags Detected</div>
+          <div class="risk-list" id="riskList"></div>
+        </div>
+
+        <!-- Evidence Advisor -->
+        <div class="detail-section hidden" id="advisorSection">
+          <div class="detail-section-title">Evidence-Gap Advisor</div>
+          <div id="advisorList"></div>
+
+          <!-- Upload box -->
+          <div style="margin-top:10px; padding:10px; background:var(--surface); border:1px solid var(--border); border-radius:8px;">
+            <div style="font-size:11px; font-weight:600; margin-bottom:8px;">Provide Additional Evidence</div>
+            <select id="evidenceTypeSelect" style="width:100%; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:var(--text); font-size:11px; font-family:inherit; margin-bottom:6px;">
+              <option value="inner_label">🏷️ Inner Label / Wash Tag Photo</option>
+              <option value="serial_batch_code">🔢 Serial Number / Batch Code</option>
+              <option value="packaging_box">📦 Retail Box & Barcode</option>
+              <option value="seller_invoice">🧾 Receipt / Invoice</option>
+              <option value="stitching_closeup">🔍 Stitching / Logo Close-up</option>
+            </select>
+            <input type="file" id="evidenceFileInput" accept="image/*" style="font-size:11px; color:var(--muted); width:100%; margin-bottom:6px;">
+            <button id="submitEvidenceBtn" class="btn" style="width:100%; font-size:11px;">Upload & Re-Score</button>
+          </div>
+        </div>
+
+      </div><!-- end details-panel -->
+    </div><!-- end tl-result -->
+  </div><!-- end view-traffic -->
+
+  <!-- ── Error View ──────────────────────────────────── -->
+  <div id="view-error" class="hidden">
+    <div class="error-icon">⚠️</div>
+    <div class="error-title">TrustLens Backend Offline</div>
+    <p class="error-msg" id="errorMsg">Could not connect to the local AI engine at http://localhost:8000.<br>Make sure it's running.</p>
+    <button class="btn primary" id="retryBtn" style="width:100%; max-width:200px;">Retry Connection</button>
+  </div>
+
+  <!-- ── Footer ─────────────────────────────────────── -->
+  <footer class="footer">
+    <button class="btn" id="rescanBtn">↺ Rescan Page</button>
+    <button class="btn primary" id="reportBtn">📋 Full Report</button>
+  </footer>
 
   <script src="popup.js"></script>
 </body>

@@ -372,8 +372,12 @@
     };
   }
 
-  // Listen for message from popup
+  // ─────────────────────────────────────────────────────────────
+  // MESSAGE HANDLERS
+  // ─────────────────────────────────────────────────────────────
+
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // Popup requests a live extraction (manual rescan button)
     if (request.action === "EXTRACT_PAGE_DATA") {
       try {
         const data = extractPageProduct();
@@ -382,10 +386,300 @@
         sendResponse({ success: false, error: err.message });
       }
     }
+
+    // Background requests whatever product data this page has (fallback for unscanned sites)
+    if (request.action === "GET_CACHED_DATA") {
+      try {
+        const data = extractPageProduct();
+        sendResponse({ success: true, data: data });
+      } catch (err) {
+        sendResponse({ success: false, data: null });
+      }
+    }
+
     return true;
   });
 
-  // Expose for testing
+  // ─────────────────────────────────────────────────────────────
+  // PASSIVE AUTO-SCAN (Zero-Click Feature)
+  // ─────────────────────────────────────────────────────────────
+  // Fires automatically when the page finishes loading.
+  // Sends scraped product data to background.js without any user interaction.
+  // Delay allows SPAs (Amazon, Flipkart) to finish rendering dynamic content.
+
+  function sendPassiveScan() {
+    // Skip internal browser pages and extension pages
+    const url = window.location.href;
+    if (!url || url.startsWith("chrome") || url.startsWith("about") || url.startsWith("edge")) return;
+
+    let payload;
+    try {
+      payload = extractPageProduct();
+    } catch (e) {
+      return; // Extraction failed silently — don't crash the page
+    }
+
+    // Send fire-and-forget to background service worker
+    // Must check lastError to prevent uncaught error in console
+    chrome.runtime.sendMessage({ action: "PAGE_LOADED", payload }, () => {
+      if (chrome.runtime.lastError) {
+        // Background SW may be sleeping — this is normal. Ignore.
+      }
+    });
+  }
+
+  // 2500ms delay: lets React/Vue/Angular SPAs finish rendering product data
+  setTimeout(sendPassiveScan, 2500);
+
+  // ─────────────────────────────────────────────────────────────
+  // BUY NOW / CHECKOUT INTERCEPTION  (Aggressive Dual-Mode)
+  // ─────────────────────────────────────────────────────────────
+  //
+  // Mode A — CSS selector matching  (platform-specific, high precision)
+  // Mode B — Text / attribute heuristics  (catches anything Mode A misses)
+  //
+  // Why dual-mode?
+  //   Scam sites and indie shops rarely use <button id="buy-now-button">.
+  //   They use <div onclick> or <a class="btn">Pay ₹499</a>.
+  //   Text matching catches every real-world checkout trigger regardless
+  //   of markup, class names, or platform.
+  // ─────────────────────────────────────────────────────────────
+
+  // ── Mode A: CSS selectors ──────────────────────────────────────
+  // These are high-precision matches for known platforms.
+  // Safe to add more — no other code changes required.
+  const CHECKOUT_SELECTORS = [
+    // ── Amazon ──────────────────────────────────────────────────
+    "#buy-now-button",
+    "#buyNow",
+    "input[name='submit.buy-now']",
+    "#pt-buy-box-atc button[name='submit.buy-now']",
+    // ── Flipkart ────────────────────────────────────────────────
+    "._2KpZ6l._3tsQPE._1SodSK",
+    "._2KpZ6l._1ph1Gg._3tsQPE",
+    "button[class*='_2KpZ6l']",
+    // ── Meesho / generic Indian e-com ───────────────────────────
+    "[data-testid='buy-now']",
+    "[data-testid='checkout-btn']",
+    "[data-testid='proceed-to-pay']",
+    "[data-action='buy-now']",
+    "[data-action='checkout']",
+    // ── Generic class / id patterns ─────────────────────────────
+    "#buy-now", "#buyNow", "#buy_now",
+    "#checkout-btn", "#checkoutBtn", "#proceed-checkout",
+    "#pay-now", "#payNow",
+    ".buy-now", ".buy_now", ".buyNow",
+    ".checkout-btn", ".checkoutBtn",
+    ".proceed-to-checkout", ".proceed-checkout",
+    ".pay-now", ".payNow",
+    // ── Attribute / name patterns ───────────────────────────────
+    "button[name='buy-now']",
+    "button[name='checkout']",
+    "button[type='submit'][class*='buy']",
+    "button[type='submit'][class*='pay']",
+    "button[type='submit'][class*='checkout']",
+    // ── Href-based (anchor tags leading to checkout) ─────────────
+    "a[href*='checkout']",
+    "a[href*='buy-now']",
+    "a[href*='buy_now']",
+    "a[href*='payment']",
+    "a[href*='pay-now']",
+    // ── Razorpay / PhonePe embedded checkout buttons ─────────────
+    ".razorpay-payment-button",
+    "button[class*='razorpay']",
+    "button[class*='phonepe']",
+    "button[class*='paytm']",
+  ];
+
+  // ── Mode B: Text / attribute keyword heuristics ───────────────
+  // Normalised to lower-case. Matched against:
+  //   element.textContent (trimmed, collapsed whitespace)
+  //   element.id
+  //   element.name
+  //   element.value          (input[type=submit])
+  //   aria-label
+  //   title attribute
+  //   href (for anchor tags)
+  const CHECKOUT_KEYWORDS = [
+    "buy now", "buy it now", "buynow",
+    "pay now", "pay \u20b9", "pay $", "pay \u00a3", "pay \u20ac",  // ₹ $ £ €
+    "proceed to pay", "proceed to checkout", "proceed to payment",
+    "place order", "placeorder",
+    "checkout", "check out",
+    "complete purchase", "confirm order", "confirm payment",
+    "continue to payment", "continue to pay",
+    "make payment", "go to checkout",
+    "order now", "shop now",
+    "add to cart & buy",
+  ];
+
+  // Elements that are NEVER checkout triggers — avoids false positives
+  // on navigation menus, search bars, and filter buttons.
+  const IGNORE_SELECTORS = [
+    "input[type='search']", "input[type='text']", "input[type='email']",
+    "input[type='password']", "textarea", "select",
+    "[role='menuitem']", "[role='tab']", "[role='option']",
+    ".cart-quantity", ".qty", "#quantity",
+    "nav a", "header a", "footer a",
+  ];
+
+  /**
+   * Returns true if `el` (or any ancestor up to 4 levels) matches
+   * one of the CSS selectors in CHECKOUT_SELECTORS.
+   */
+  function matchesCssSelectors(el) {
+    for (const sel of CHECKOUT_SELECTORS) {
+      try {
+        if (el.matches(sel) || el.closest(sel)) return true;
+      } catch (_) { /* invalid selector — skip */ }
+    }
+    return false;
+  }
+
+  /**
+   * Returns true if the element's visible text or key attributes
+   * contain one of the CHECKOUT_KEYWORDS.
+   */
+  function matchesTextHeuristic(el) {
+    // Walk up to the nearest interactive ancestor (button / a / [role])
+    // so clicking a <span> inside a <button> still works.
+    const interactive = el.closest(
+      "button, a, [role='button'], input[type='submit'], input[type='button'], [onclick]"
+    ) || el;
+
+    // Build a single normalised string from all text-like attributes
+    const parts = [
+      interactive.textContent,
+      interactive.id,
+      interactive.getAttribute("name") || "",
+      interactive.getAttribute("value") || "",
+      interactive.getAttribute("aria-label") || "",
+      interactive.getAttribute("title") || "",
+      interactive.getAttribute("placeholder") || "",
+      interactive.getAttribute("href") || "",
+      interactive.getAttribute("data-label") || "",
+      interactive.getAttribute("data-text") || "",
+    ];
+
+    const haystack = parts
+      .join(" ")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return CHECKOUT_KEYWORDS.some((kw) => haystack.includes(kw));
+  }
+
+  /**
+   * Returns true if `el` should be ignored (search fields, nav links, etc.)
+   */
+  function shouldIgnore(el) {
+    for (const sel of IGNORE_SELECTORS) {
+      try {
+        if (el.matches(sel) || el.closest(sel)) return true;
+      } catch (_) {}
+    }
+    return false;
+  }
+
+  // ── Debounce guard ─────────────────────────────────────────────
+  // Unlike a one-shot boolean, this resets after 2 s so a transient
+  // Service Worker sleep failure can recover on the next click.
+  let _intentCooldown = false;
+
+  function _resetCooldown() {
+    _intentCooldown = false;
+  }
+
+  /**
+   * Master click handler — attached at document level with capture so
+   * it fires before the page's own click handlers.
+   *
+   * NOT passive — we need the option to call event.preventDefault()
+   * in future if we want to hard-block the navigation.
+   */
+  function handleCheckoutClick(event) {
+    // Only intercept primary (left) clicks
+    if (event.button !== 0) return;
+
+    // Respect the 2-second cooldown
+    if (_intentCooldown) return;
+
+    const target = event.target;
+    if (!target || typeof target.matches !== "function") return;
+
+    // Fast-reject: ignore form fields, nav menus, etc.
+    if (shouldIgnore(target)) return;
+
+    // Check Mode A first (precise), then Mode B (text heuristic)
+    const triggered = matchesCssSelectors(target) || matchesTextHeuristic(target);
+    if (!triggered) return;
+
+    // ── Triggered — arm the cooldown ─────────────────────────────
+    _intentCooldown = true;
+    setTimeout(_resetCooldown, 2000);
+
+    // ── Scrape current product data ───────────────────────────────
+    let payload = null;
+    try { payload = extractPageProduct(); } catch (_) {}
+
+    // ── Send to background Service Worker ────────────────────────
+    // sendMessage is fire-and-forget; background.js checks session cache
+    // and injects the overlay if the verdict is YELLOW or RED.
+    try {
+      chrome.runtime.sendMessage(
+        { action: "CHECKOUT_INTENT", payload },
+        () => {
+          // chrome.runtime.lastError must be read to suppress the uncaught
+          // console error when the SW is temporarily sleeping.
+          void chrome.runtime.lastError;
+        }
+      );
+    } catch (sendErr) {
+      // Extension context can be invalidated after a reload — fail silently.
+      console.debug("[TrustLens] sendMessage failed:", sendErr.message);
+    }
+  }
+
+  // ── Attach listener ────────────────────────────────────────────
+  // capture: true  — fires BEFORE the page's own onclick handlers
+  // passive: false — allows future use of event.preventDefault()
+  document.addEventListener("click", handleCheckoutClick, {
+    capture: true,
+    passive: false,
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // MUTATION OBSERVER — SPA route-change & late-render detection
+  // ─────────────────────────────────────────────────────────────
+  // When a SPA (React / Vue / Angular) swaps in a new product page
+  // without a full navigation, the passive scan needs to re-run AND
+  // the cooldown guard should reset so the new page's buttons work.
+
+  let rescanScheduled = false;
+  const domObserver = new MutationObserver(() => {
+    if (rescanScheduled) return;
+    rescanScheduled = true;
+    setTimeout(() => {
+      rescanScheduled = false;
+      // Re-run passive scan with new page content
+      sendPassiveScan();
+      // Reset intent cooldown — the user is now on a new product page
+      _intentCooldown = false;
+      // Disconnect after first successful rescan to avoid infinite loops
+      domObserver.disconnect();
+    }, 3000);
+  });
+
+  // Observe major structural changes only (childList on body, not subtree attribute noise)
+  domObserver.observe(document.body, { childList: true, subtree: false });
+
+  // Hard disconnect ceiling — 12 s is enough for any SPA to settle
+  setTimeout(() => domObserver.disconnect(), 12000);
+
+  // ─────────────────────────────────────────────────────────────
+  // MODULE EXPORTS (for unit testing)
+  // ─────────────────────────────────────────────────────────────
   if (typeof module !== "undefined" && module.exports) {
     module.exports = {
       extractJsonLd,
@@ -393,7 +687,9 @@
       extractAmazon,
       extractFlipkart,
       extractGenericFallback,
-      extractPageProduct
+      extractPageProduct,
+      sendPassiveScan
     };
   }
 })();
+
